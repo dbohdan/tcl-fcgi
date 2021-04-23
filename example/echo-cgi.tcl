@@ -3,19 +3,28 @@
 #  echo-cgi --
 #
 
-package require cgi
+package require html
+package require ncgi
 package require Fcgi
 
+namespace eval echo-cgi {
+  namespace path ::fcgi
 
-set count 0
-while {[FCGI_Accept] >= 0 } {
-  cgi_eval {
+  set count 0
+
+  while {[FCGI_Accept] >= 0 } {
     incr count
-    cgi_title "fcgi.tcl: echo-cgi.fcg"
-    cgi_body {
-      cgi_h1 "fcgi.tcl"
-      cgi_h2 "echo-cgi.fcg: request number $count"
-      cgi_parray env
-    }
+
+    puts "Content-Type: text/html\r\n\r\n"
+    html::init
+
+    puts "<!doctype html>"
+    puts [html::head {fcgi.tcl: echo-cgi.fcg}]
+    puts [html::openTag body]
+    puts [html::h1 {fcgi.tcl}]
+    puts [html::h2 "echo-cgi.fcg: request number $count"]
+    puts [html::tableFromArray env]
+    puts [html::closeTag]
+    puts [html::closeTag]
   }
 }
