@@ -12,25 +12,25 @@
 #    (the 'package require Tclx' is near the bottom of this file, and only
 #    used when needed.)
 #    Tcl 8.0+ is required, as fcgi.tcl uses namespace and binary commands.
-#    
- 
- 
-package provide Fcgi @FCGI_VERSION_FULL@
+#
+
+
+package provide Fcgi 0.4.0
 
 namespace eval fcgi {
- 
+
 variable fcgi
 global env
- 
+
 ###############################################################################
 # define fcgi constants (from fastcgi.h)
- 
+
 # Values for protocol info
 set fcgi(FCGI_LISTENSOCK_FILENO) 0
 set fcgi(FCGI_MAX_LENGTH)        [expr 0xffff]
 set fcgi(FCGI_HEADER_LEN)        8
 set fcgi(FCGI_VERSION_1)         1
- 
+
 # Values for type component of FCGI_Header
 set fcgi(FCGI_BEGIN_REQUEST)       1
 set fcgi(FCGI_ABORT_REQUEST)       2
@@ -43,51 +43,51 @@ set fcgi(FCGI_DATA)                8
 set fcgi(FCGI_GET_VALUES)          9
 set fcgi(FCGI_GET_VALUES_RESULT)  10
 set fcgi(FCGI_UNKNOWN_TYPE)       11
- 
+
 # Value for requestId component of FCGI_Header
 set fcgi(FCGI_NULL_REQUEST_ID)     0
- 
+
 # Mask for flags component of FCGI_BeginRequestBody
 set fcgi(FCGI_KEEP_CONN)  1
- 
+
 # Values for role component of FCGI_BeginRequestBody
 set fcgi(FCGI_RESPONDER)  1
 set fcgi(FCGI_AUTHORIZER) 2
 set fcgi(FCGI_FILTER)     3
- 
+
 # Values for protocolStatus component of FCGI_EndRequestBody
 set fcgi(FCGI_REQUEST_COMPLETE) 0
 set fcgi(FCGI_CANT_MPX_CONN)    1
 set fcgi(FCGI_OVERLOADED)       2
 set fcgi(FCGI_UNKNOWN_ROLE)     3
- 
+
 # Variable names for FCGI_GET_VALUES / FCGI_GET_VALUES_RESULT records
 set fcgi(FCGI_MAX_CONNS)  "FCGI_MAX_CONNS"
 set fcgi(FCGI_MAX_REQS)   "FCGI_MAX_REQS"
 set fcgi(FCGI_MPXS_CONNS) "FCGI_MPXS_CONNS"
- 
+
 ###############################################################################
 # define fcgi state variables
- 
+
 set fcgi(requestId)     -1		;# current requestId in progress
 set fcgi(origEnv)    [array names env]	;# list of orignal env names
 set fcgi(listenSock)    -1		;# socket on which we listen
 set fcgi(acceptCmd)     -1		;# command to accept new sock
 set fcgi(newSock)       -1		;# new client socket
-global fcgiNewSock 
+global fcgiNewSock
 set fcgiNewSock         -1		;# var to wait on Tcl socket
 set fcgi(newClient)     ""		;# ip of client that connected
 set fcgi(bufSize)       4096		;# stdout/stderr buffer size
 set fcgi(notFcgi)	0		;# if app is running as normal CGI
- 
- 
+
+
 ###############################################################################
 # define fcgi mgmt variables responses
 
 set fcgi(fcgi_max_conns)     1		;# only one connection at a time
 set fcgi(fcgi_max_reqs)      1		;# only one request at a time
 set fcgi(fcgi_mpxs_conns)    0		;# don't multiplex connections
- 
+
 ###############################################################################
 # per request variables
 
@@ -104,7 +104,7 @@ set fcgi(fcgi_mpxs_conns)    0		;# don't multiplex connections
 #set fcgi($requestId,stdoutFlg) 0       ;# stdout written flag
 #set fcgi($requestId,stderr)    ""	;# stderr buffer
 #set fcgi($requestId,stderrFlg) 0       ;# stderr written flag
-#set fcgi($requestId,keepConn)  0	;# keep connection 
+#set fcgi($requestId,keepConn)  0	;# keep connection
 #set fcgi($requestId,exitCode)  0	;# exit code
 #set fcgi($requestId,role)      0	;# fcgi role
 
@@ -114,7 +114,7 @@ rename read  _read_tcl
 rename flush _flush_tcl
 rename puts  _puts_tcl
 rename eof   _eof_tcl
- 
+
 
 }   ;# end of namespace eval fcgi
 
@@ -337,58 +337,58 @@ proc fcgi::eof {file} {
 #
 ###############################################################################
 
- 
+
 ###############################################################################
 # read fcgi record
- 
+
 proc fcgi::readFcgiRecord {sock} {
   variable fcgi
   set msg ""
- 
+
   while {[string length $msg] != $fcgi(FCGI_HEADER_LEN)} {
     append msg \
 	[_read_tcl $sock [expr $fcgi(FCGI_HEADER_LEN) - [string length $msg]]]
   }
- 
+
   set version         0
   set type            0
   set requestId       0
   set contentLength   0
   set paddingLength   0
   set reserved        0
- 
+
   # read the header
   binary scan $msg ccSScc version type requestId contentLength \
                           paddingLength reserved
- 
+
   # convert everything to unsigned int values
   set version       [expr ($version       + 0x100)   % 0x100]
   set type          [expr ($type          + 0x100)   % 0x100]
   set requestId     [expr ($requestId     + 0x10000) % 0x10000]
   set contentLength [expr ($contentLength + 0x10000) % 0x10000]
   set paddingLength [expr ($paddingLength + 0x100)   % 0x100]
- 
+
   # read msg content
   set content ""
   while {[string length $content] != $contentLength} {
     append content \
 	[_read_tcl $sock [expr $contentLength - [string length $content]]]
   }
- 
+
   # read msg padding
   set padding ""
   while {[string length $padding] != $paddingLength} {
     append padding \
 	[_read_tcl $sock [expr $paddingLength - [string length $padding]]]
   }
- 
+
   return [list $version $type $requestId $contentLength $content]
 }
 
- 
+
 ###############################################################################
 # write fcgi record
- 
+
 proc fcgi::writeFcgiRecord {sock version type requestId content} {
 
   set contentLength [string length $content]
@@ -402,12 +402,12 @@ proc fcgi::writeFcgiRecord {sock version type requestId content} {
   }
 
 }
- 
- 
+
+
 ###############################################################################
 # scan fcgi request body
 #   input: message string of type FCGI_BEGIN_REQUEST
- 
+
 proc fcgi::scanFcgiRequestBody {msg} {
   set role   0
   set flags  0
@@ -417,29 +417,29 @@ proc fcgi::scanFcgiRequestBody {msg} {
   set flags [expr ($flags + 0x100)   % 0x100]
   return [list $role $flags]
 }
- 
+
 
 ###############################################################################
 # format fcgi end request response
- 
+
 proc fcgi::formatFcgiEndRequest {appStatus protocolStatus} {
   return [binary format Icc3 $appStatus $protocolStatus {0 0 0}]
 }
- 
- 
+
+
 ###############################################################################
 # format fcgi unknown type response
- 
+
 proc fcgi::formatFcgiUnknownType {type} {
   return [binary format cc7 $type {0 0 0 0 0 0 0}]
 }
- 
+
 
 ###############################################################################
 # scan fcgi name value pair
- 
+
 proc fcgi::scanFcgiNameValue {msg} {
- 
+
   # get name len
   set nlen 0
   binary scan $msg c nlen
@@ -451,7 +451,7 @@ proc fcgi::scanFcgiNameValue {msg} {
   } else {
     set nlenLen 1
   }
- 
+
   # get value len
   set vlen 0
   binary scan $msg "x${nlenLen}c" vlen
@@ -463,7 +463,7 @@ proc fcgi::scanFcgiNameValue {msg} {
   } else {
     set vlenLen 1
   }
- 
+
   # get name and value
   set fmt [format x%dx%da%da%d $nlenLen $vlenLen $nlen $vlen]
   set name  ""
@@ -476,7 +476,7 @@ proc fcgi::scanFcgiNameValue {msg} {
 
 ###############################################################################
 # format fcgi name value pair
- 
+
 proc fcgi::formatFcgiNameValue {name value} {
   set nlen [string length $name]
   set vlen [string length $value]
@@ -499,7 +499,7 @@ proc fcgi::formatFcgiNameValue {name value} {
 
 ###############################################################################
 # respond to mgmt record requests
- 
+
 proc fcgi::respondFcgiMgmtRecord {s msg} {
   variable fcgi
   set requestId $fcgi(requestId)
@@ -516,31 +516,31 @@ proc fcgi::respondFcgiMgmtRecord {s msg} {
     # "open" style of switch command
     switch -- $name \
       $fcgi(FCGI_MAX_CONNS)  {
-	 append reply [formatFcgiNameValue $name $fcgi(fcgi_max_conns)]    
+	 append reply [formatFcgiNameValue $name $fcgi(fcgi_max_conns)]
       } \
       $fcgi(FCGI_MAX_REQS) {
-	 append reply [formatFcgiNameValue $name $fcgi(fcgi_max_reqs)]    
+	 append reply [formatFcgiNameValue $name $fcgi(fcgi_max_reqs)]
       } \
       $fcgi(FCGI_MPXS_CONNS) {
-	 append reply [formatFcgiNameValue $name $fcgi(fcgi_mpxs_conns)]    
+	 append reply [formatFcgiNameValue $name $fcgi(fcgi_mpxs_conns)]
       } \
       default {
       }
-    
+
   }
 
   if {[string length $reply] > 0} {
      writeFcgiRecord $fcgi($requestId,sock) $fcgi(FCGI_VERSION_1) \
-	     $fcgi(FCGI_GET_VALUES_RESULT) 0 $reply 
+	     $fcgi(FCGI_GET_VALUES_RESULT) 0 $reply
   }
 }
 
 
 ###############################################################################
 # process fcgi header / new request
-# returns list: requestId role flags - new request 
+# returns list: requestId role flags - new request
 #        {-1 0 0} - server tried to multiplex request
-#        { 0 0 0} - socket closed 
+#        { 0 0 0} - socket closed
 
 proc fcgi::getFcgiBeginRequest {sock} {
   variable fcgi
@@ -576,7 +576,7 @@ proc fcgi::getFcgiBeginRequest {sock} {
 # process fcgi connections
 # returns 1 - "waitfor" stream completed
 #        -1 - server tried to multiplex request or abort request
-#         0 - socket closed 
+#         0 - socket closed
 
 proc fcgi::processFcgiStream {sock requestId waitfor} {
   variable fcgi
@@ -630,7 +630,7 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
 	} else {
 	  if {!$fcgi($requestId,dataRedir)} {
 	    append fcgi($requestId,stdin) $content
-	  } 
+	  }
 	}
       } \
       $fcgi(FCGI_DATA)   {
@@ -651,7 +651,7 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
         writeFcgiRecord $sock $fcgi(FCGI_VERSION_1) \
              $fcgi(FCGI_END_REQUEST) $requestId \
              [formatFcgiEndRequest 0 $fcgi(FCGI_REQUEST_COMPLETE)]
-	
+
 	return -1
       } \
       $fcgi(FCGI_END_REQUEST) - \
@@ -664,8 +664,8 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
 	# send back unknown type
         writeFcgiRecord $sock $version $fcgi(FCGI_UNKNOWN_TYPE) $requestId \
 						 [formatFcgiUnknownType $type]
-      } 
-    # end of switch 
+      }
+    # end of switch
   }
 
   return 1
@@ -678,7 +678,7 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
 proc fcgi::setupFcgiEnv {requestId} {
   variable fcgi
   global env
-  
+
   # unset all but orignal env names
   foreach {name} [array names env] {
     if {[lsearch $fcgi(origEnv) $name] == -1} {
@@ -727,7 +727,7 @@ proc fcgi::resetCgiEnv {} {
   # cgi.tcl uses the _cgi array to save state information, which needs to
   # be reset on each FCGI_Accept call
 
-  global _cgi 
+  global _cgi
   variable fcgi_cgi
 
   if {[array exists _cgi]} {
@@ -739,7 +739,7 @@ proc fcgi::resetCgiEnv {} {
       }
       catch {unset _cgi}
       array set _cgi [array get fcgi_cgi]
-      # unset other _cgi_xxxx vars 
+      # unset other _cgi_xxxx vars
       # untouched are: _cgi_link _cgi_imglink _cgi_link_url
       set cgi_vars {_cgi_uservar _cgi_cookie _cgi_cookie_shadowed _cgi_userfile}
       foreach v $cgi_vars {
@@ -768,11 +768,11 @@ proc fcgi::FCGI_Accept {} {
   global env
   set requestId $fcgi(requestId)
 
-  # if we started with stdin as a real stdin, then fail second time around 
+  # if we started with stdin as a real stdin, then fail second time around
   if {$fcgi(notFcgi)} {
     return -1
   }
-  
+
   # flush and pending request
   if {$fcgi(requestId) != -1} {
     FCGI_Finish
@@ -821,7 +821,7 @@ proc fcgi::FCGI_Accept {} {
   set fcgi($requestId,stdoutFlg) 0	;# stdout written flag
   set fcgi($requestId,stderr)    ""	;# stderr buffer
   set fcgi($requestId,stderrFlg) 0	;# stderr written flag
-  set fcgi($requestId,keepConn)  $flags	;# keep connection 
+  set fcgi($requestId,keepConn)  $flags	;# keep connection
   set fcgi($requestId,exitCode)  0	;# exit code
   set fcgi($requestId,role)      $role	;# fcgi role
 
@@ -892,12 +892,12 @@ proc fcgi::FCGI_Finish {} {
   cleanUpFcgi $requestId
 
   set fcgi(requestId)  -1
-  
+
 }
 
 
 ###############################################################################
-# set exit status for fcgi 
+# set exit status for fcgi
 
 proc fcgi::FCGI_SetExitStatus {status} {
   variable fcgi
@@ -955,7 +955,7 @@ global env
 # procs to handle native Tcl socket accepts & Tclx accepts
 #
 
-# callback proc from Tcl's 'socket -server' 
+# callback proc from Tcl's 'socket -server'
 proc fcgiAccept {sock client port} {
   global fcgiNewSock
   variable fcgi
@@ -974,7 +974,7 @@ proc fcgiSockAccept {sock} {
   return $fcgiNewSock
 }
 
-# blocking 'accept' for TclX sockets 
+# blocking 'accept' for TclX sockets
 proc fcgiTclxAccept {sock} {
   variable fcgi
   set fcgi(newSock)   ""
@@ -1014,7 +1014,7 @@ if {$port < 0} {
 
 
 # if port was found, then open a server socket on which to listen
-# if no port was found, assume we started with as a forked process with 
+# if no port was found, assume we started with as a forked process with
 # stdin = unix domain socket from apache's mod_fastcgi.
 
 if {$port < 0} {
@@ -1033,7 +1033,7 @@ if {$port < 0} {
 namespace export FCGI_Accept FCGI_Finish FCGI_SetExitStatus \
 		 FCGI_StartFilterData FCGI_SetBufSize
 namespace export gets read flush puts eof
- 
+
 }   ;# end of namespace eval fcgi
 
 
@@ -1045,9 +1045,9 @@ namespace import -force fcgi::puts
 namespace import -force fcgi::eof
 
 # import the application fcgi commands
-namespace import fcgi::FCGI_Accept 
-namespace import fcgi::FCGI_Finish 
-namespace import fcgi::FCGI_SetExitStatus 
+namespace import fcgi::FCGI_Accept
+namespace import fcgi::FCGI_Finish
+namespace import fcgi::FCGI_SetExitStatus
 namespace import fcgi::FCGI_StartFilterData
 namespace import fcgi::FCGI_SetBufSize
 

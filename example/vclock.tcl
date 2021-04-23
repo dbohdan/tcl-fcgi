@@ -1,19 +1,7 @@
-#!/bin/sh
-# set shell vars \
- export LD_LIBRARY_PATH SHLIB_PATH LPATH
-#  \
- LD_LIBRARY_PATH="@exec_prefix@/lib:$LD_LIBRARY_PATH"
-#  \
- SHLIB_PATH="@exec_prefix@/lib:$SHLIB_PATH"
-#  \
- LPATH="@exec_prefix@/lib:$LPATH"
-# restart using tcl \
- exec @FCGI_TCL_EXECUTABLE@ "$0" "$@"
-
-
+#! /usr/bin/env tclsh
 # vclock.fcg -- borrowed from Don Libes' cgi.tcl, and modified slightly for
 #  fcgi.tcl
-# 
+#
 
 
 package require cgi
@@ -44,7 +32,7 @@ set counter 0
 while {[FCGI_Accept] >= 0} {
 
   cgi_eval {
-    
+
     cgi_input
     cgi_root [file dirname $env(SCRIPT_NAME)]
 
@@ -86,7 +74,7 @@ while {[FCGI_Accept] >= 0} {
 	    cgi_radio_button type=24-hour        ;put "24-hour"
 	    br
 	    cgi_reset_button
-	    cgi_submit_button =Set	    
+	    cgi_submit_button =Set
 	}
 	hr
 	cgi_puts "See Don Libes' cgi.tcl and original vclock "

@@ -1,26 +1,14 @@
-#!/bin/sh
-# set shell vars \
- export LD_LIBRARY_PATH SHLIB_PATH LPATH
-#  \
- LD_LIBRARY_PATH="@exec_prefix@/lib:$LD_LIBRARY_PATH"
-#  \
- SHLIB_PATH="@exec_prefix@/lib:$SHLIB_PATH"
-#  \
- LPATH="@exec_prefix@/lib:$LPATH"
-# restart using tcl \
- exec @FCGI_TCL_EXECUTABLE@ "$0" "$@"
-
-
+#! /usr/bin/env tclsh
 #
 #  echo-tcl --
-# 
+#
 # 	Produce a page containing all FastCGI inputs
-# 
+#
 # Copyright (c) 1996 Open Market, Inc.
 #
 # See the file "LICENSE.TERMS" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-# 
+#
 #  $Id: echo-tcl,v 1.2 1996/10/30 14:38:01 mbrown Exp $
 #
 
@@ -38,7 +26,7 @@ proc printEnv {label envArrayName} {
 foreach name [array names env] {
     set initialEnv($name) $env($name)
 }
-set count 0 
+set count 0
 while {[FCGI_Accept] >= 0 } {
     incr count
     puts -nonewline "Content-type: text/html\r\n\r\n"
