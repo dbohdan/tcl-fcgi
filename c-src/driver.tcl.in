@@ -1,0 +1,49 @@
+#!/bin/sh
+# set shell vars \
+ export LD_LIBRARY_PATH SHLIB_PATH LPATH
+#  \
+ LD_LIBRARY_PATH="@exec_prefix@/lib:$LD_LIBRARY_PATH"
+#  \
+ SHLIB_PATH="@exec_prefix@/lib:$SHLIB_PATH"
+#  \
+ LPATH="@exec_prefix@/lib:$LPATH
+# restart using tcl \
+ exec @FCGI_TCL_EXECUTABLE@  "$0" "$@"
+
+
+# simple driver program to start an 'ExternalAppClass' style
+# fcgi, but using libfcgi where fd 0 (eg. stdin) is expected to
+# be a listen socket
+#
+# usage: driver.tcl <port> <fcgi-pgm>
+
+package require Tclx
+
+proc usage {} {
+  global argv0
+  puts "usage: $argv0 <port> <fcgi-pgm>"
+  exit
+}
+
+if {$argc < 2} {usage}
+set port 0
+scan [lindex $argv 0] %d port
+if {$port == 0} {usage}
+set fcgiapp [lindex $argv 1]
+
+# got port and app, close stdin and open server socket
+
+close stdin
+
+if {[catch {set fd [server_create -myport $port]}]} {
+  puts "$argv0: unable to open port $port: $errorInfo"
+  exit
+}
+
+puts "starting $fcgiapp, listening on port $port"
+set output ""
+catch {exec $fcgiapp <@ $fd > /dev/null 2> /dev/null} output
+puts "fcgi app $fcgiapp finished: $output"
+puts "errorInfo: $errorInfo"
+
+exit

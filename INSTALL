@@ -1,0 +1,116 @@
+
+Fcgi.tcl INSTALL
+
+Fcgi.tcl flavors:
+
+    Fcgi.tcl is available in two flavors, a 100% Tcl flavor, and a
+    C extension flavor.
+
+    'tcl-src' is a 100% Tcl flavor of Fcgi.tcl.  It's advantages are that you
+    don't need the FastCGI Developer's kit, easy modification and tuning,
+    and it's portable to Windows environments.  The disadvantage is that
+    it is slower in processing the FastCGI protocol than the C extension 
+    version.  You will also need the Extended Tcl (TclX) extension to 
+    use 'AppClass' style connections.
+
+    'c-src' is a Tcl C extension that must be compiled.  You'll need to 
+    have the FastCGI Developer's kit installed.  The advantage is that it's 
+    faster in processing the FastCGI protocol.  The disadvantage
+    is that it relies on other libraries (the Developer's kit), and is not
+    as easy to modify.
+
+    My advice is that the 'tcl-src' flavor is easy to get started and
+    experiment, and generally runs with acceptable performance.  If you need 
+    the last ounce of processing power, go with the 'c-src' flavor.
+
+
+1. You will need to have Tcl and TclX already installed.  See the README
+   for where to get them.  TclX is not necessarily required for 
+   the 'c-src' flavor.  If you install the 'tcl-src' flavor, you will need
+   TclX for 'AppClass' style connections.
+
+
+2. Run "./configure".  
+
+   You should specify the same --prefix and --exec-prefix as you did when 
+   you configured Tcl and TclX.  The defaults are /usr/local.
+
+   ./configure --prefix=/usr/local  --exec-prefix=/usr/local
+
+
+   Configure will use the --prefix= --exec-prefix= to locate a working
+   'tcl' or 'tclsh8.0' executable.  These directories also specify where to
+   find the Tcl library and config files (lib/tcl8.0 and lib/tclConfig.sh).
+
+   ./configure has three options, 
+				--with-fcgi-directory=PATH
+				--disable-shared
+				--with-tclx
+
+   If you are planning on building the C extension, configure will need to
+   find the 'fcgi-devel-kit' directory.  This is done by looking in several
+   parent level directories.  If configure is unable to locate your
+   fcgi-devel-kit directory AND you are planning to build the C extension,
+   re-run configure and specify this option.  Here's an example, you
+   should of course substitute the correct directories:
+
+   ./configure 	--prefix=/usr/local  		\
+		--exec-prefix=/usr/local	\
+		--with-fcgi-directory=/usr/src/fcgi
+
+   When building the C extension, the default is to build a shared 
+   library that can be loaded using 'package require Fcgi'.  
+   Tcl MUST ALSO have been configured with '--enable-shared'.  The configure
+   script and Makefile uses information from the tclConfig.sh file that
+   deals with compiling and linking shared libraries.
+
+   You can build a static library and executable by specifing 
+   '--disable-shared' as a configure option.   If you noramlly use 
+   Extended Tcl, you can build an executable with Tcl, TclX, and Fcgi
+   by using the configure option '--with-tclx'.
+
+   IF you plan on making and installing the 'tcl-src' flavor AND DON'T
+   have the FastCGI Developer's kit, configure will issue a warning(s), which
+   can be ignored.
+
+   This step will generate a Makefile, tcl-src/Makefile, tcl-src/Fcgi.tcl, 
+   tcl-src/pkgIndex.tcl, c-src/Makefile.
+
+
+3. Run "make"
+
+   You will need to decide which flavor of Fcgi.tcl to make and install.
+   Your choices are:
+
+	make tcl-src
+	or
+	make c-src
+
+   Making 'tcl-src' is trivial, since the it's 100% Tcl anyway.  Making
+   'c-src' requires finding some fcgi-devel-kit files, compiling, and linking
+   into a shared library, or building static tcl executables.  I highly
+   recommend building shared libraries when you can.
+
+   Again, your Tcl installation MUST HAVE BEEN BUILT with --enable-shared!
+
+
+4. Run "make install".
+
+   You will need to specify the same flavor, either the Tcl source package,
+   or the C extension package:
+
+	make install-tcl-src
+	or
+	make install-c-src
+
+   This step will install Fcgi.tcl as a package that can be sourced by the 
+   Tcl 'package require Fcgi' command.  A new directory (FcgXY)  will be 
+   made in the ./lib directory specified by '--prefix='.  Fcgi.tcl or
+   libFcgiXY.so, and pkgIndex.tcl will be copied to that directory.  ('XY'
+   represent the Fcgi major/minor release numbers.)
+
+   Example programs in example/src are also configured for execution.
+   Example programs will have to be moved to an appropriate directory
+   for execution by your web server.
+
+

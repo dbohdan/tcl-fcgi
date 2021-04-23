@@ -1,0 +1,139 @@
+
+Fcgi.tcl NOTES
+
+These are some random notes concerning Fcgi.tcl and Apache 
+
+1. TclX 'server_accept'
+
+  Extended Tcl (also known as TclX) provides several commands for building
+  Tcp servers.  As of TclX version 8.0.x, many of these commands have
+  be deprecated, since most of the functionality can be done with native Tcl
+  commands ('socket', 'fconfigure', 'fileevent').   TclX 8.0.x still includes
+  the 'server_' commands, but they are no longer documented.
+
+  However, the TclX command 'server_accept' does a few things that make
+  Fcgi.tcl work: it allows an inherited file descriptor to be used as a server
+  socket.  This allows Fcgi.tcl to be used as an 'AppClass' style of FastCGI
+  program, without requiring a new Tcl extension.
+
+  Here's how this works:
+    1. The 'AppClass' Apache directive specifies a FastCGI program that should
+       be spawned by the Apache web server itself.
+    2. When Apache starts up, it reads the configuration 'AppClass' directive.
+       The mod_fastcgi.c module processes the AppClass directive.
+    3. mod_fastcgi.c then forks one or more times for each FastCGI program.  It
+       does this by creating a Unix domain socket (in the case of a simple
+       AppClass) or a Tcp socket (if the Appclass has a "-socket" or "-port"
+       option.)  mod_fastcgi makes the socket into a server type of socket, 
+       by performing a bind() and listen() on the socket.  The file 
+       descriptors for stdin, stdout, and stderr are closed,
+       and the socket is dup'ed as file descriptor 0 (e.g. stdin).
+    4. mod_fastcgi then exec's the FastCGI process.
+    5. The exec'ed process, in our case a Tcl interpreter, inherits file
+       descriptor 0 (which is the listen socket).  Tcl proceeds to make this
+       into a channel of type "File" as part of it's startup processing.
+    6. The Tcl interprets starts executing your script.  When your script
+       performs a 'FCGI_Accept' command, the TclX 'server_accept' command is
+       called.  'server_accept' is happy to extract the file descriptor from
+       the stdin channel, perform an accept(), and make the newly accepted
+       socket into a Tcl channel of type "Socket".  Fcgi.tcl can then
+       read and write to that socket.
+	
+
+  If you use Fcgi.tcl as an 'ExternalAppClass' FastCGI program, the native
+  Tcl socket commands are used.  In this case, TclX is never required by
+  Fcgi.tcl.
+
+
+2. Differences between 'AppClass' and 'ExternalAppClass'
+
+  AppClass:  The Apache web server forks and execs the FastCGI 
+  program.  The FastCGI process inherits file descriptor 0 (eg. stdin) as
+  the socket on which to accept connections.  As of mod_fastcgi 2.0.9,
+  a process manager tries to ensure that FastCGI processes are kept running.
+
+  ExternalAppClass: This directive associates a Unix path with the host and
+  port of a listening FastCGI application, possibly running on a different
+  machine.  Note that the Unix path of the specified ExternalAppClass program
+  must exist on the web server machine!
+
+
+3. Configurations for Apache
+
+  See the examples provided with mod_fastcgi.  Note that for ExternalAppClass
+  directives, the path specified must be the Unix path, and that file
+  must exist, even if the '-host' parameter specifies a different machine and
+  port nubmer.  For the ugly details, see the code for function 
+  'FastCgiHandler()' in mod_fastcgi.c.
+
+
+4. /bin/sh Wrapper scripts 
+
+  Shell wrapper scripts may be necessary to start some FastCGI applications 
+  written in Tcl.  The possible problems are limits placed on the #!
+  interpreter line by some versions of Unix, and searching of shared libraries.
+
+  You can also write wrapper scripts to be bilingual, shell and Tcl.
+  This is a well know trick to restart a shell script using Tcl, setting any 
+  enviroment variables along the way.  The nice thing about this approach is 
+  that you don't need two script files, one for the shell and the other 
+  Tcl script.
+
+  See the examples in ./example/*.fcg  (or ./example/src/*.fcg.in if you 
+  haven't yet installed Fcgi.tcl.)
+
+
+5. Apache 1.2.5 and mod_fastcgi_2.0.9
+
+  This version of mod_fastcgi is apparently written to support Apache 1.3,
+  of which 1.3b3 is the latest version at the time Fcgi.tcl was written.
+
+  A patches are needed to make mod_fastcgi_2.0.9 work with Apache 1.2.5.
+  See the patch file in mod_apache1.2.5.pat  (patch provided by 
+  "Paul 'Shag' Walmsley" <ccshag@cclabs.missouri.edu>
+
+
+6. cgi.tcl and Fcgi.tcl
+
+  Cgi.tcl is a wonderful package for writing CGI style programs in Tcl.
+  Fcgi.tcl is designed to work with cgi.tcl.  Currently, cgi.tcl 
+  is programmed to handle one HTTP request, and keeps several global
+  arrays for state information.  Of particular interest are the state 
+  variables for HTTP input and header generation.  Fcgi.tcl tries to reset 
+  and/or unset some of the cgi.tcl global variables, fooling cgi.tcl into 
+  generating HTTP headers for a new connection.  I recommend that
+  your code be structured as the following:
+
+	package require Tclx
+	package require cgi
+	package require Fcgi
+
+	cgi_link defines...
+	cgi_root path
+
+	while {[FCGI_Accept] >= 0} {
+	  cgi_eval {
+	    # bulk of cgi_ routines here
+	  }
+	}
+
+
+  Also note that cgi.tcl tries to make aliases to all of its commands without 
+  the 'cgi_' prefix.   Because some TclX command names are the same as cgi.tcl
+  commands without 'cgi_', I recommend that you use the full 'cgi_' command
+  names when coding your programs.  One that has bitten me in the past is
+  using 'cgi_link'.  'link' is a Tclx command to link file names, so make sure
+  you get the 'cgi_link' command by fully qualifing the command as 'cgi_link'.
+
+
+7. Single threaded vs. multi threaded
+
+  Fcgi.tcl is currently written as a single threaded library.  I'll
+  likely add event driven support to handle multiple requests & 
+  multiple connections when mod_fastcgi.c starts supporting multiple
+  connections.  The Tcl Fcgi interface is likely to change.
+  
+
+
+Tom Poindexter
+tpoindex@nyx.net

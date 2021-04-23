@@ -1,0 +1,23 @@
+
+Fcgi.tcl HISTORY
+
+jan 8 1998  version 0.1
+	first working version, 0.1
+
+
+jan 12 1998  version 0.2
+	added resetCgiEnv if running with cgi.tcl
+
+
+jan 16 1998  version 0.3
+	first working version of c extension, move tcl source to tcl-src/,
+	add c extension source to c-src/, modify existing makefile, add
+	new c makefile, change configure script to check for fcgi-devel-kit
+	directory
+
+
+jan 28 1998  version 0.4
+	additional cleanup of code (remove early debugging info) 
+	modify tclFcgiCmd.c to better deal with resetting cgi.tcl state
+
+

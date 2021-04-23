@@ -1,0 +1,21 @@
+fcgi.tcl examples
+
+You should 'make all' this the directory above this.  That will run
+'configure' to build the fcgi.tcl examples in this directory.
+
+
+Please see the file ../NOTES for configuration information.
+
+echo-tcl.fcg - from the fcgi developers kit 2.0.x,  see 
+		LICENSE.TERMS.OpenMarket
+
+echo-cgi.fcg - a small version of echo using cgi.tcl
+
+vclock.fcg - adapted from Don Libes' cgi.tcl.  wrapped the main
+		cgi_eval inside of a while loop executing FCGI_Accept,
+		move 'source example.tcl' outside of cgi_eval.
+		use tcl 'clock' command instead of exec'ing 'date'.
+
+
+
+

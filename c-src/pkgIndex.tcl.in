@@ -1,0 +1,1 @@
+package ifneeded Fcgi @FCGI_VERSION@ "load [file join $dir .. libFcgi@FCGI_LIBVER@[info sharedlibextension]]"

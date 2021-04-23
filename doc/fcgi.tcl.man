@@ -1,0 +1,185 @@
+.TH FCGI.TCL TCL "8 January 1998" "Tcl"
+.SH NAME
+Fcgi.tcl \- Tcl support for the FastCGI protocol
+.SH DESCRIPTION
+Fcgi.tcl allows Tcl programs to be used in FastCGI applications. 
+Fcgi.tcl requires
+Tcl version 8.0 and higher, and Extended Tcl (TclX) version 8.x and higher.
+.SH SYNOPSIS
+.nf
+
+package require Fcgi
+
+FCGI_Accept
+FCGI_Finish
+FCGI_SetExitStatus n
+FCGI_StartFilterData
+FCGI_SetBufSize n
+
+.fi
+.SH INNVOCATION
+FastCGI programs are started by an 'AppClass' directive from a web server 
+that supports FastCGI, or are started manually and accessed from a web server
+via the 'ExternalAppClass' directive.
+.sp
+Fcgi.tcl comes in two flavors: a 100% Tcl version, and another which
+is a C extension.  Each fcgi.tcl flavor provides the same programming
+interface.
+.sp
+When a program using 
+the 100% Tcl flavor of Fcgi.tcl
+is started by 'AppClass', Fcgi.tcl assumes that
+file descriptor 0 is a socket that is used to accept new connections.  When
+using 'AppClass' style connections, Fcgi.tcl requires Extended Tcl (TclX).
+.sp
+If 'ExternalAppClass' is used, the FastCGI Tcl program must be started 
+manually.  In this case, Fcgi.tcl expects the command line argument
+.B -port x
+or the environment variable
+.B PORT
+to specify the port on which to listen for connection.  'ExternalAppClass'
+style connections do not require Extended Tcl (TclX).
+.sp
+Programs using
+the C extension flavor of Fcgi.tcl don't require TclX.
+Programs started as 'ExternalAppClass', must be started
+with 'driver.tcl' or similar program.  Driver.tcl requires Extended Tcl (TclX).
+.SH "COMMANDS"
+.TP
+.B FCGI_Accept 
+.br
+Accept a new FastCGI connection.  FCGI_Accept returns "0" for a new connection,
+or "-1" if an error was encountered.  
+If the application was invoked as a CGI program, FCGI_Accept will return "0"
+for the first call to it, then return "-1" on subsequent calls.  This allows
+a properly coded FastCGI program to work in a convential CGI environment.
+FCGI_Accept sets environment variables
+to that of the initial enviroment plus variables for the FastCGI connection.
+FCGI_Accept will call FCGI_Finish if a previous response is still pending
+before accepting a new request.  
+Additionally, FCGI_Accept sets the environment variable 
+\fIFCGI_ROLE\fR to one of three values, depending of the type of the
+FastCGI connection:
+.RS
+.sp
+.TP
+RESPONDER
+.br
+The FastCGI program receives CGI/1.1 environment variables.  The FastCGI
+program will receive at most 
+.B CONTENT_LENGTH
+bytes of data on the Tcl channel \fIstdin\fR.  
+The FastCGI program should respond the the request as a typical CGI program
+by writing its output on the Tcl channel \fIstdout\fR.  
+.sp
+.TP 
+AUTHORIZER
+.br
+The FastCGI program receives HTTP request information as environment variables.
+The FastCGI program will receive at most 
+.B CONTENT_LENGTH
+bytes of data on the Tcl channel \fIstdin\fR.  
+The FastCGI program should respond as status 200 to indicate access should
+be granted.  The FastCGI program may also send HTTP headers that are 
+prefixed with \fIVariable-\fR by writing on \fIstdout\fR.
+.sp
+.TP
+FILTER
+.br
+The FastCGI program receives CGI/1.1 environment variables.  The FastCGI
+program will receive at most
+.B CONTENT_LENGTH
+bytes of data on the Tcl channel \fIstdin\fR.  After all of stdin has been
+read, the FastCGI program may call FCGI_StartFilterData to receive
+the additional data stream.  The FastCGI program
+will then receive at most
+.B FCGI_DATA_LENGTH
+bytes on the Tcl channel \fIstdin\fR.
+.RE
+.sp
+.TP
+.B FCGI_Finish
+.br
+Finish a FastCGI connection by flushing output buffers and sending an
+exit status code.  If an exit code has not been set by calling 
+FCGI_SetExitStatus, FCGI_Finish assumes a code of "0".
+.sp
+.TP
+.B FCGI_SetExitStatus \fIstatus-code\fR
+.br
+Set an exit code for the most current FastCGI connection.  The last call
+to FCGI_SetExitStatus sets the status code to be returned upon calling
+FCGI_Finish.  \fIstatus-code\fR should be a numeric integer.
+.sp
+.TP
+.B FCGI_StartFilterData
+.br
+Start receiving the 
+.B FCGI_DATA
+data stream as the Tcl channel \fIstdin\fR.  Any previous data left unread
+on the stdin stream will be lost.  FCGI_DATA is only received when the
+FastCGI application's role is FILTER.
+.sp
+.TP
+.B FCGI_SetBufSize \fIbuffer-size\fR
+.br
+Sets the size of the output buffer for Tcl 
+channels \fIstdout\fR and \fIstderr\fR.  The default buffer size for each
+channel is 4096 bytes.  A buffer size of "0" causes output to be flushed
+on every \fIputs\fR to stdout or stderr.  The maximum buffer size allowed
+is 65536 bytes.
+.sp
+FastCGI output may also be flushed at any time by
+calling the Tcl command \fIflush stdout\fR.
+.SH "FASTCGI PROTOCOL"
+Currently, the Fcgi.tcl package is single threaded, and replies to
+FastCGI managment records as:
+.RS
+.TP
+.B FCGI_MAX_CONNS
+"1"
+.TP
+.B FCGI_MAX_REQS
+"1"
+.TP
+.B FCGI_MPXS_CONNS
+"0"
+.RE
+.SH "SEE ALSO"
+cgi.tcl, a Tcl package for writing CGI programs, by Don Libes.
+.br
+http://expect.nist.gov/cgi.tcl.
+.sp
+FastCGI documentation.
+.br
+http://www.fastcgi.com
+.sp
+Unoffical FastCGI page.  
+.br
+http://fastcgi.idle.com
+.SH NOTES
+See the files README, INSTALL and  NOTES for additional information and 
+Apache Server configuration.  Fcgi.tcl is an orginal implementation of the
+FastCGI protocol, version 1.0 dated Arpil 29, 1996 by Mark R. Brown, 
+Open Market, Inc.  Fcgi.tcl is compatiable with the libfcgi library 
+available with the FastCGI developer's kit for Tcl.
+.sp
+If cgi.tcl is used in the same application as Fcgi.tcl, 
+you should order \fIpackage require\fR commands as:
+.sp
+.nf
+package require cgi
+package require Fcgi
+.fi
+.sp
+Cgi.tcl uses the global array \fI_cgi\fR to 
+hold state information.  FCGI_Accept
+will set the \fI_cgi\fR array to 
+beginning values so that its state information
+will be reset for each new connection.
+.SH AUTHOR
+Tom Poindexter, tpoindex@nyx.net, Talus Technologies, Inc., Highlands Ranch, CO.
+http://www.nyx.net/~tpoindex
+.sp
+Copyright 1998 Tom Poindexter.  See the file 'LICENSE.TERMS' for 
+additional copyright and licensing terms.

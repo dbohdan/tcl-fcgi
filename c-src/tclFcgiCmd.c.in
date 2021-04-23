@@ -1,0 +1,529 @@
+/*
+ * tclFcgiCmd.c 
+ * FastCGI support for Tcl 8.0
+ * Copyright 1998 Tom Poindexter, see ../LICENSE.TERMS for copyright and
+ * licensing info
+ *
+ * based on  tclFCGI.c (fcgi developer's kit for tcl7.4)
+ *           and tclUnixChan.c (tcl 8.0 )
+ */ 
+
+/* 
+ * tclFCGI.c --
+ *
+ *	TCL functions needed to set up FastCGI commands
+ *
+ * Copyright (c) 1996 Open Market, Inc.
+ *
+ * See the file "LICENSE.TERMS" in ../examples directory
+ * for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ */
+
+#define FCGI_VERSION "@FCGI_VERSION@"
+
+#include <tcl.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/fcntl.h>
+#include "fcgiapp.h"
+
+
+#ifndef FALSE
+#define FALSE (0)
+#endif
+
+#ifndef TRUE
+#define TRUE  (1)
+#endif
+
+
+static int acceptCalled = FALSE;
+static int isCGI = FALSE;
+static FCGX_Stream *in, *out, *err;
+static FCGX_ParamArray envp = NULL;
+
+/*
+ * The following defines how much buffer space the kernel should maintain
+ * for an fcgi stream
+ */
+
+#define FCGI_BUFSIZE	4096
+
+static int fcgi_bufsize = FCGI_BUFSIZE;
+static int out_bufsize = 0;
+static int err_bufsize = 0;
+
+/*
+ * Static routines for this file:
+ */
+
+static int		FcgiCloseProc _ANSI_ARGS_((ClientData instanceData,
+			    Tcl_Interp *interp));
+static int		FcgiInputProc _ANSI_ARGS_((ClientData instanceData,
+		            char *buf, int toRead,  int *errorCode));
+static int		FcgiOutputProc _ANSI_ARGS_((ClientData instanceData,
+		            char *buf, int toWrite, int *errorCode));
+
+static void 		DoTclEnv _ANSI_ARGS_((Tcl_Interp *interp, 
+			    char **envp, int set));
+static void		UnRegStdio _ANSI_ARGS_((Tcl_Interp *interp));
+
+/*
+ * This structure describes the channel type structure for FCGI
+ * based IO:
+ */
+
+static Tcl_ChannelType fcgiChannelType = {
+    "fcgi",				/* Type name. */
+    NULL,				/* Set blocking/nonblocking mode.*/
+    FcgiCloseProc,			/* Close proc. */
+    FcgiInputProc,			/* Input proc. */
+    FcgiOutputProc,			/* Output proc. */
+    NULL,				/* Seek proc. */
+    NULL,				/* Set option proc. */
+    NULL,				/* Get option proc. */
+    NULL,				/* Initialize notifier. */
+    NULL,				/* Get OS handles out of channel. */
+};
+
+
+static char cgi_doLoad[] = "catch {cgi_lt}; ";
+static char cgi_doCleanup[] = "catch {fcgi::resetCgiEnv}; ";
+
+static char cgi_cleanup[] =
+"namespace eval fcgi { \n\
+proc resetCgiEnv {} { \n\
+  global _cgi \n\
+  variable fcgi_cgi \n\
+  if {[array exists _cgi]} { \n\
+    # try to use cgi.tcl reset environment, otherwise do it ourselves \n\
+    if {[catch {cgi_reset_env}]} { \n\
+      # set _cgi back to beginning values \n\
+      if {![array exists fcgi_cgi]} { \n\
+        array set fcgi_cgi [array get _cgi] \n\
+      } \n\
+      catch {unset _cgi} \n\
+      array set _cgi [array get fcgi_cgi] \n\
+      # unset other _cgi_xxxx vars \n\
+      # untouched are: _cgi_link _cgi_imglink _cgi_link_url \n\
+  set cgi_vars {_cgi_uservar _cgi_cookie _cgi_cookie_shadowed _cgi_userfile} \n\
+      foreach v $cgi_vars { \n\
+        global $v \n\
+        catch {unset $v} \n\
+      } \n\
+    } \n\
+  } \n\
+} \n\
+} ";
+
+
+
+/*
+ * For each variable in the array envp, either set or unset it
+ * in the interpreter interp.
+ */
+static void DoTclEnv(Tcl_Interp *interp, char **envp, int set)
+{
+    int i;
+    char *p, *p1;
+    for (i = 0; ; i++) {
+	if ((p = envp[i]) == NULL) {
+	    break;
+	}
+        p1 = strchr(p, '=');
+	*p1 = '\0';
+        if(set) {
+	    Tcl_SetVar2(interp, "env", p, p1 + 1, TCL_GLOBAL_ONLY);
+        } else {
+	    Tcl_UnsetVar2(interp, "env", p, TCL_GLOBAL_ONLY);
+	}
+	*p1 = '=';
+    }
+}
+
+
+/* 
+ * unregister and close stdio channels
+ */
+
+static void UnRegStdio (Tcl_Interp *interp)
+{
+    Tcl_Channel chan;
+    
+    chan = Tcl_GetChannel(interp, "fcgi0", NULL);
+    if (chan != (Tcl_Channel) NULL) {
+        Tcl_UnregisterChannel(interp, chan);
+    }
+    
+    chan = Tcl_GetChannel(interp, "fcgi1", NULL);
+    if (chan != (Tcl_Channel) NULL) {
+        Tcl_UnregisterChannel(interp, chan);
+    }
+    
+    chan = Tcl_GetChannel(interp, "fcgi2", NULL);
+    if (chan != (Tcl_Channel) NULL) {
+        Tcl_UnregisterChannel(interp, chan);
+    }
+}
+
+static int FcgiAcceptCmd(
+        ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+{
+    char **savedEnviron;
+    int acceptResult;
+    char buf[200];
+    Tcl_Channel chan; 
+    int mode;
+
+    if(!acceptCalled) {
+        /*
+         * First call to FCGX_Accept.  Is application running
+         * as FastCGI or as CGI?
+         */
+        isCGI = FCGX_IsCGI();
+        acceptCalled = TRUE;
+    } else if(isCGI) {
+        /*
+         * Not first call to FCGX_Accept and running as CGI means
+         * application is done.
+         */
+        sprintf(buf, "%d", EOF);
+        Tcl_SetResult(interp, buf, TCL_VOLATILE);
+        return TCL_OK;
+    }
+
+    if(isCGI) {
+        /* leave alone stdin, stdout, stderr */
+    } else {
+        /* unregister previous fcgi channels */
+        UnRegStdio(interp);
+        
+        acceptResult = FCGX_Accept(&in, &out, &err, &envp);
+        if(acceptResult < 0) {
+            return acceptResult;
+        }
+
+        /* make in, out, error into Tcl channels */
+        chan = Tcl_CreateChannel(&fcgiChannelType, "fcgi0",
+            (ClientData) in, (TCL_READABLE));
+	if (chan != (Tcl_Channel) NULL) {
+            Tcl_SetStdChannel(chan, TCL_STDIN);
+            Tcl_RegisterChannel(interp, chan);
+	} else {
+	}
+
+        chan = Tcl_CreateChannel(&fcgiChannelType, "fcgi1",
+            (ClientData) out, (TCL_WRITABLE));
+	if (chan != (Tcl_Channel) NULL) {
+            Tcl_SetStdChannel(chan, TCL_STDOUT);
+            Tcl_RegisterChannel(interp, chan);
+	} else {
+	}
+
+        chan = Tcl_CreateChannel(&fcgiChannelType, "fcgi2",
+            (ClientData) err, (TCL_WRITABLE));
+	if (chan != (Tcl_Channel) NULL) {
+	    Tcl_SetStdChannel(chan, TCL_STDERR);
+            Tcl_RegisterChannel(interp, chan);
+	} else {
+	}
+
+    }
+
+
+    /*
+     * Unmake Tcl variable settings for the request just completed.
+     */
+    if (envp != NULL) {
+	DoTclEnv(interp, (char **) envp, FALSE);
+    }
+    /*
+     * Call FCGX_Accept but preserve environ.
+     */
+
+
+    /*
+     * Make Tcl variable settings for the new request.
+     */
+    if(acceptResult >= 0 && !FCGX_IsCGI()) {
+        DoTclEnv(interp, (char **) envp, TRUE);
+    }
+    
+
+    /*
+     * Clean up cgi.tcl environment,if any 
+     */
+
+    Tcl_Eval(interp, cgi_doLoad);
+    Tcl_Eval(interp, cgi_doCleanup);
+
+    sprintf(buf, "%d", acceptResult);
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+static int FcgiFinishCmd(
+        ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+{
+    char buf[200];
+
+    /*
+     * Unmake Tcl variable settings for the completed request.
+     */
+    if(envp != NULL) {
+        DoTclEnv(interp, (char **) envp, FALSE);
+	envp = NULL;
+    }
+
+    /* unregister fcgi channels */
+    UnRegStdio(interp);
+        
+    if(!acceptCalled || isCGI) {
+        /* don't do anything if no socket accepted or running as CGI */
+    } else {
+        FCGX_Finish();
+    }
+
+    Tcl_SetResult(interp, "0", TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+static int FcgiSetExitStatusCmd(
+        ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+{
+    char buf[200];
+
+    if (argc != 2) {
+	sprintf(interp->result, "wrong # args");
+	return TCL_ERROR;
+    }
+    FCGX_SetExitStatus(atoi(argv[1]),in);
+    sprintf(buf, "%d", 0);
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+static int FcgiStartFilterDataCmd(
+        ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+{
+    char buf[200];
+
+    Tcl_Channel chan;
+    
+    /* stdin may be marked as EOF, so unregister & re-register stdin */
+    chan = Tcl_GetChannel(interp, "fcgi0", NULL);
+    if (chan != (Tcl_Channel) NULL) {
+        Tcl_UnregisterChannel(interp, chan);
+    }
+    chan = Tcl_CreateChannel(&fcgiChannelType, "fcgi0",
+            (ClientData) in, (TCL_READABLE));
+    if (chan != (Tcl_Channel) NULL) {
+        Tcl_SetStdChannel(chan, TCL_STDIN);
+        Tcl_RegisterChannel(interp, chan);
+    }
+
+    sprintf(buf, "%d", FCGX_StartFilterData(in));
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+static int FcgiSetBufSizeCmd(
+        ClientData dummy, Tcl_Interp *interp, int argc, char **argv)
+{
+    char buf[200];
+
+    
+    if (argc > 1) {
+      fcgi_bufsize = atoi(argv[1]);
+    }
+
+    sprintf(buf, "%d", fcgi_bufsize);
+    Tcl_SetResult(interp, buf, TCL_VOLATILE);
+    return TCL_OK;
+}
+
+
+int Fcgi_Init(Tcl_Interp *interp) {
+
+    
+    /* source the cgi.tcl cleanup code */
+    Tcl_Eval(interp, cgi_cleanup);
+
+    Tcl_CreateCommand(
+            interp, "FCGI_Accept", FcgiAcceptCmd, 0, NULL);
+    Tcl_CreateCommand(
+            interp, "FCGI_Finish", FcgiFinishCmd, 0, NULL);
+    Tcl_CreateCommand(
+            interp, "FCGI_SetExitStatus", FcgiSetExitStatusCmd, 0, NULL);
+    Tcl_CreateCommand(
+            interp, "FCGI_StartFilterData", FcgiStartFilterDataCmd, 0, NULL);
+    Tcl_CreateCommand(
+            interp, "FCGI_SetBufSize", FcgiSetBufSizeCmd, 0, NULL);
+
+    if (Tcl_PkgProvide(interp, "Fcgi", FCGI_VERSION) != TCL_OK) {
+        return TCL_ERROR;
+    }
+
+    return TCL_OK;
+}
+
+
+
+
+
+/*
+ * tcl Fcgi Channel based on:
+ *
+ */
+
+/* 
+ * tclUnixChan.c
+ *
+ *	Common channel driver for Unix channels based on files, command
+ *	pipes and TCP sockets.
+ *
+ * Copyright (c) 1995-1997 Sun Microsystems, Inc.
+ *
+ * See the file "license.terms" for information on usage and redistribution
+ * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ * SCCS: @(#) tclUnixChan.c 1.203 97/06/20 13:03:18
+ */
+
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FcgiInputProc --
+ *
+ *	This procedure is invoked by the generic IO level to read input
+ *	from a Fcgi based channel.
+ *
+ *	NOTE: We cannot share code with FilePipeInputProc because here
+ *	we must use recv to obtain the input from the channel, not read.
+ *
+ * Results:
+ *	The number of bytes read is returned or -1 on error. An output
+ *	argument contains the POSIX error code on error, or zero if no
+ *	error occurred.
+ *
+ * Side effects:
+ *	Reads input from the input device of the channel.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static int
+FcgiInputProc(instanceData, buf, bufSize, errorCodePtr)
+    ClientData instanceData;		/* Socket state. */
+    char *buf;				/* Where to store data read. */
+    int bufSize;			/* How much space is available
+                                         * in the buffer? */
+    int *errorCodePtr;			/* Where to store error code. */
+{
+    FCGX_Stream *fcgx = (FCGX_Stream *) instanceData;
+    int bytesRead, state;
+
+    *errorCodePtr = 0;
+
+    bytesRead = FCGX_GetStr(buf, bufSize, fcgx);
+
+    return bytesRead;
+}
+
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FcgiOutputProc --
+ *
+ *	This procedure is invoked by the generic IO level to write output
+ *	to a Fcgi based channel.
+ *
+ *	NOTE: We cannot share code with FilePipeOutputProc because here
+ *	we must use send, not write, to get reliable error reporting.
+ *
+ * Results:
+ *	The number of bytes written is returned. An output argument is
+ *	set to a POSIX error code if an error occurred, or zero.
+ *
+ * Side effects:
+ *	Writes output on the output device of the channel.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static int
+FcgiOutputProc(instanceData, buf, toWrite, errorCodePtr)
+    ClientData instanceData;		/* Socket state. */
+    char *buf;				/* The data buffer. */
+    int toWrite;			/* How many bytes to write? */
+    int *errorCodePtr;			/* Where to store error code. */
+{
+    FCGX_Stream *fcgx = (FCGX_Stream *) instanceData;
+    int rc;
+    int flushit = 0;
+
+    *errorCodePtr = 0;
+    if (fcgx == out) {
+      out_bufsize += toWrite;
+      if (out_bufsize > fcgi_bufsize) flushit = 1;
+    } else if (fcgx == err) {
+      err_bufsize += toWrite;
+      if (err_bufsize > fcgi_bufsize) flushit = 1;
+    }
+    rc =  FCGX_PutStr(buf, toWrite, fcgx);
+    if (flushit) {
+       FCGX_FFlush(fcgx);
+       if (fcgx == out) {
+	   out_bufsize = 0;
+       } else {
+	   err_bufsize = 0;
+       }
+    } 
+    return rc;
+}
+
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * FcgiCloseProc --
+ *
+ *	This procedure is invoked by the generic IO level to perform
+ *	channel-type-specific cleanup when a Fcgi based channel
+ *	is closed.
+ *
+ * Results:
+ *	0 if successful, the value of errno if failed.
+ *
+ * Side effects:
+ *	Closes the socket of the channel.
+ *
+ *----------------------------------------------------------------------
+ */
+
+	/* ARGSUSED */
+static int
+FcgiCloseProc(instanceData, interp)
+    ClientData instanceData;	/* The socket to close. */
+    Tcl_Interp *interp;		/* For error reporting - unused. */
+{
+    FCGX_Stream *fcgx = (FCGX_Stream *) instanceData;
+    if (fcgx == out) {
+	out_bufsize = 0;
+    } else {
+	err_bufsize = 0;
+    }
+    return 0;
+}
+

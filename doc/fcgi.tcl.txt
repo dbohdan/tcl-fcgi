@@ -1,0 +1,264 @@
+
+
+
+FCGI.TCL(TCL)     Misc. Reference Manual Pages      FCGI.TCL(TCL)
+
+
+
+NNNNAAAAMMMMEEEE
+     Fcgi.tcl - Tcl support for the FastCGI protocol
+
+DDDDEEEESSSSCCCCRRRRIIIIPPPPTTTTIIIIOOOONNNN
+     Fcgi.tcl allows Tcl programs to be used in FastCGI  applica-
+     tions.  Fcgi.tcl  requires  Tcl  version 8.0 and higher, and
+     Extended Tcl (TclX) version 8.x and higher.
+
+SSSSYYYYNNNNOOOOPPPPSSSSIIIISSSS
+     package require Fcgi
+
+     FCGI_Accept
+     FCGI_Finish
+     FCGI_SetExitStatus n
+     FCGI_StartFilterData
+     FCGI_SetBufSize n
+
+
+IIIINNNNNNNNVVVVOOOOCCCCAAAATTTTIIIIOOOONNNN
+     FastCGI programs are started by an 'AppClass' directive from
+     a  web server that supports FastCGI, or are started manually
+     and accessed from a web server  via  the  'ExternalAppClass'
+     directive.
+
+     Fcgi.tcl comes in two  flavors:  a  100%  Tcl  version,  and
+     another  which  is a C extension.  Each fcgi.tcl flavor pro-
+     vides the same programming interface.
+
+     When a program using the 100%  Tcl  flavor  of  Fcgi.tcl  is
+     started by 'AppClass', Fcgi.tcl assumes that file descriptor
+     0 is a socket that is used to accept new connections.   When
+     using   'AppClass'   style  connections,  Fcgi.tcl  requires
+     Extended Tcl (TclX).
+
+     If 'ExternalAppClass' is used, the FastCGI Tcl program  must
+     be  started  manually.   In  this case, Fcgi.tcl expects the
+     command line argument ----ppppoooorrrrtttt xxxx or  the  environment  variable
+     PPPPOOOORRRRTTTT  to specify the port on which to listen for connection.
+     'ExternalAppClass' style connections do not require Extended
+     Tcl (TclX).
+
+     Programs using the C  extension  flavor  of  Fcgi.tcl  don't
+     require  TclX.  Programs started as 'ExternalAppClass', must
+     be started with 'driver.tcl' or similar program.  Driver.tcl
+     requires Extended Tcl (TclX).
+
+CCCCOOOOMMMMMMMMAAAANNNNDDDDSSSS
+     FFFFCCCCGGGGIIII____AAAAcccccccceeeepppptttt
+          Accept a new FastCGI connection.   FCGI_Accept  returns
+          "0"  for  a  new  connection,  or  "-1" if an error was
+          encountered. If the application was invoked  as  a  CGI
+          program, FCGI_Accept will return "0" for the first call
+
+
+
+Tcl                Last change: 8 January 1998                  1
+
+
+
+
+
+
+FCGI.TCL(TCL)     Misc. Reference Manual Pages      FCGI.TCL(TCL)
+
+
+
+          to it, then return  "-1"  on  subsequent  calls.   This
+          allows  a  properly  coded FastCGI program to work in a
+          convential CGI environment.  FCGI_Accept sets  environ-
+          ment  variables  to that of the initial enviroment plus
+          variables for the FastCGI connection.  FCGI_Accept will
+          call  FCGI_Finish if a previous response is still pend-
+          ing  before  accepting  a  new  request.  Additionally,
+          FCGI_Accept  sets the environment variable _F_C_G_I__R_O_L_E to
+          one of three values,  depending  of  the  type  of  the
+          FastCGI connection:
+
+
+          RESPONDER
+               The FastCGI program receives  CGI/1.1  environment
+               variables.   The  FastCGI  program will receive at
+               most CCCCOOOONNNNTTTTEEEENNNNTTTT____LLLLEEEENNNNGGGGTTTTHHHH bytes of data on the Tcl chan-
+               nel  _s_t_d_i_n. The FastCGI program should respond the
+               the request as a typical CGI  program  by  writing
+               its output on the Tcl channel _s_t_d_o_u_t.
+
+
+          AUTHORIZER
+               The FastCGI program receives HTTP request informa-
+               tion  as  environment variables.  The FastCGI pro-
+               gram will receive at most CCCCOOOONNNNTTTTEEEENNNNTTTT____LLLLEEEENNNNGGGGTTTTHHHH bytes  of
+               data on the Tcl channel _s_t_d_i_n. The FastCGI program
+               should respond as status 200  to  indicate  access
+               should  be  granted.  The FastCGI program may also
+               send HTTP headers that are prefixed with _V_a_r_i_a_b_l_e-
+               by writing on _s_t_d_o_u_t.
+
+
+          FILTER
+               The FastCGI program receives  CGI/1.1  environment
+               variables.   The  FastCGI  program will receive at
+               most CCCCOOOONNNNTTTTEEEENNNNTTTT____LLLLEEEENNNNGGGGTTTTHHHH bytes of data on the Tcl chan-
+               nel  _s_t_d_i_n.  After all of stdin has been read, the
+               FastCGI program may call  FCGI_StartFilterData  to
+               receive  the  additional data stream.  The FastCGI
+               program will then receive at most FFFFCCCCGGGGIIII____DDDDAAAATTTTAAAA____LLLLEEEENNNNGGGGTTTTHHHH
+               bytes on the Tcl channel _s_t_d_i_n.
+
+
+     FFFFCCCCGGGGIIII____FFFFiiiinnnniiiisssshhhh
+          Finish a FastCGI connection by flushing output  buffers
+          and  sending  an exit status code.  If an exit code has
+          not been set by calling FCGI_SetExitStatus, FCGI_Finish
+          assumes a code of "0".
+
+
+     FFFFCCCCGGGGIIII____SSSSeeeettttEEEExxxxiiiittttSSSSttttaaaattttuuuussss _s_t_a_t_u_s-_c_o_d_e
+          Set  an  exit  code  for  the  most   current   FastCGI
+
+
+
+Tcl                Last change: 8 January 1998                  2
+
+
+
+
+
+
+FCGI.TCL(TCL)     Misc. Reference Manual Pages      FCGI.TCL(TCL)
+
+
+
+          connection.   The  last call to FCGI_SetExitStatus sets
+          the  status  code   to   be   returned   upon   calling
+          FCGI_Finish.  _s_t_a_t_u_s-_c_o_d_e should be a numeric integer.
+
+
+     FFFFCCCCGGGGIIII____SSSSttttaaaarrrrttttFFFFiiiilllltttteeeerrrrDDDDaaaattttaaaa
+          Start receiving the FFFFCCCCGGGGIIII____DDDDAAAATTTTAAAA data stream  as  the  Tcl
+          channel  _s_t_d_i_n.   Any  previous data left unread on the
+          stdin stream will be lost.  FCGI_DATA is only  received
+          when the FastCGI application's role is FILTER.
+
+
+     FFFFCCCCGGGGIIII____SSSSeeeettttBBBBuuuuffffSSSSiiiizzzzeeee _b_u_f_f_e_r-_s_i_z_e
+          Sets the size of the output  buffer  for  Tcl  channels
+          _s_t_d_o_u_t  and  _s_t_d_e_r_r.   The default buffer size for each
+          channel is 4096 bytes.  A buffer  size  of  "0"  causes
+          output to be flushed on every _p_u_t_s to stdout or stderr.
+          The maximum buffer size allowed is 65536 bytes.
+
+          FastCGI output may also be flushed at any time by  cal-
+          ling the Tcl command _f_l_u_s_h _s_t_d_o_u_t.
+
+FFFFAAAASSSSTTTTCCCCGGGGIIII PPPPRRRROOOOTTTTOOOOCCCCOOOOLLLL
+     Currently, the Fcgi.tcl  package  is  single  threaded,  and
+     replies to FastCGI managment records as:
+
+          FFFFCCCCGGGGIIII____MMMMAAAAXXXX____CCCCOOOONNNNNNNNSSSS
+               "1"
+
+          FFFFCCCCGGGGIIII____MMMMAAAAXXXX____RRRREEEEQQQQSSSS
+               "1"
+
+          FFFFCCCCGGGGIIII____MMMMPPPPXXXXSSSS____CCCCOOOONNNNNNNNSSSS
+               "0"
+
+SSSSEEEEEEEE AAAALLLLSSSSOOOO
+     cgi.tcl, a Tcl package for  writing  CGI  programs,  by  Don
+     Libes.
+     http://expect.nist.gov/cgi.tcl.
+
+     FastCGI documentation.
+     http://www.fastcgi.com
+
+     Unoffical FastCGI page.
+     http://fastcgi.idle.com
+
+NNNNOOOOTTTTEEEESSSS
+     See the files README,  INSTALL  and   NOTES  for  additional
+     information and Apache Server configuration.  Fcgi.tcl is an
+     orginal implementation of the FastCGI protocol, version  1.0
+     dated  Arpil  29,  1996  by Mark R. Brown, Open Market, Inc.
+     Fcgi.tcl is compatiable with the libfcgi  library  available
+
+
+
+Tcl                Last change: 8 January 1998                  3
+
+
+
+
+
+
+FCGI.TCL(TCL)     Misc. Reference Manual Pages      FCGI.TCL(TCL)
+
+
+
+     with the FastCGI developer's kit for Tcl.
+
+     If cgi.tcl is used in the same application as Fcgi.tcl,  you
+     should order _p_a_c_k_a_g_e _r_e_q_u_i_r_e commands as:
+
+     package require cgi
+     package require Fcgi
+
+     Cgi.tcl uses the global array __c_g_i to  hold  state  informa-
+     tion.   FCGI_Accept  will  set  the  __c_g_i array to beginning
+     values so that its state information will be reset for  each
+     new connection.
+
+AAAAUUUUTTTTHHHHOOOORRRR
+     Tom Poindexter, tpoindex@nyx.net, Talus Technologies,  Inc.,
+     Highlands Ranch, CO.  http://www.nyx.net/~tpoindex
+
+     Copyright 1998 Tom Poindexter.  See the file 'LICENSE.TERMS'
+     for additional copyright and licensing terms.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Tcl                Last change: 8 January 1998                  4
+
+
+

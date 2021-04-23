@@ -1,0 +1,2 @@
+# simple source for fcgi
+package ifneeded Fcgi @FCGI_VERSION@ "source [file join $dir fcgi.tcl]"
