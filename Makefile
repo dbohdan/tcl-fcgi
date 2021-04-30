@@ -29,6 +29,7 @@ install: install-tcl-src
 install-tcl-src: install-man
 	mkdir -p $(SCRIPTDIR)
 	cp tcl-src/fcgi.tcl $(SCRIPTDIR)
+	cp tcl-src/fcgi-helpers.tcl $(SCRIPTDIR)
 	cp tcl-src/pkgIndex.tcl $(SCRIPTDIR)
 
 install-man: doc/fcgi.tcl.man
