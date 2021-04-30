@@ -16,7 +16,7 @@ Fcgi.tcl HISTORY
 	directory
 
 
-1998-01-28  version 0.3
+1998-01-28  version 0.4
 	additional cleanup of code (remove early debugging info) 
 	modify tclFcgiCmd.c to better deal with resetting cgi.tcl state
 
