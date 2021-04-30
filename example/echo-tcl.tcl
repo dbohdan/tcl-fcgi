@@ -44,11 +44,12 @@ proc echo-tcl::main {} {
 
             set buf [read stdin $len]
             if {[string length $buf] == $len} {
-                puts "[entities $buf]\n</pre><p>"
+                puts [entities $buf]\n
             } else {
-                puts "Error: Not enough bytes received\
-                      on standard input<p>"
+                puts "Error: Not enough bytes received on standard input"
             }
+
+            puts </pre><p>
         }
 
         set request {}
