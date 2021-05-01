@@ -31,16 +31,16 @@ namespace eval vclock {
         <form method="post">
         Show:
         <% foreach name {day month day-of-month year} { %>
-          <input type="checkbox" id="<%= $name %>" name="<%= $name %>"
-                 <%= [dict get $query $name] ? {checked} : {} %>>
-          <label for="<%= $name %>"><%= $name %></label>
+          <input type="checkbox" id="<%& $name %>" name="<%& $name %>"
+                 <%& [dict get $query $name] ? {checked} : {} %>>
+          <label for="<%& $name %>"><%& $name %></label>
         <% } %>
         <br>
         Time style:
         <% foreach value {12-hour 24-hour} { %>
-          <input type="radio" id="<%= $value %>" name="type" value="<%= $value %>"
-                 <%= [dict get $query type] eq $value ? {checked} : {} %>>
-          <label for="<%= $value %>"><%= $value %></label>
+          <input type="radio" id="<%& $value %>" name="type" value="<%& $value %>"
+                 <%& [dict get $query type] eq $value ? {checked} : {} %>>
+          <label for="<%& $value %>"><%& $value %></label>
         <% } %>
         <br>
         <input type="reset">
