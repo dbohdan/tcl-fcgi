@@ -1,18 +1,18 @@
 daemon off;
 error_log stderr;
-pid /tmp/fcgi-test-nginx/nginx.pid;
+pid %DIR%/nginx.pid;
 
 http {
-    proxy_cache_path /tmp/fcgi-test-nginx/proxy/cache levels=1:2 keys_zone=backcache:8m;
-    proxy_temp_path /tmp/fcgi-test-nginx/proxy/temp;
-    fastcgi_temp_path /tmp/fcgi-test-nginx/fastcgi;
-    uwsgi_temp_path /tmp/fcgi-test-nginx/uwsgi;
-    scgi_temp_path /tmp/fcgi-test-nginx/scgi;
+    proxy_cache_path %DIR%/proxy/cache levels=1:2 keys_zone=backcache:8m;
+    proxy_temp_path %DIR%/proxy/temp;
+    fastcgi_temp_path %DIR%/fastcgi;
+    uwsgi_temp_path %DIR%/uwsgi;
+    scgi_temp_path %DIR%/scgi;
 
     server {
         access_log /dev/stderr;
-        listen 8085;
-        client_body_temp_path /tmp/fcgi-test-nginx/client 1 2;
+        listen 127.0.0.1:%PORT%;
+        client_body_temp_path %DIR%/client 1 2;
         location / {
             fastcgi_param  GATEWAY_INTERFACE  CGI/1.1;
             fastcgi_param  SERVER_SOFTWARE    nginx;
@@ -32,7 +32,7 @@ http {
             fastcgi_param  SERVER_PORT        $server_port;
             fastcgi_param  SERVER_NAME        $server_name;
 
-            fastcgi_pass 127.0.0.1:9005;
+            fastcgi_pass 127.0.0.1:%FASTCGI_PORT%;
         }
     }
 }

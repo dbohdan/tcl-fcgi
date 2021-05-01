@@ -1,0 +1,112 @@
+#! /usr/bin/env tclsh
+
+package require fileutil
+package require http
+package require tcltest
+
+
+proc main {} {
+    cd [file dirname [info script]]/..
+
+    set ::env(TCLLIBPATH) [pwd]/tcl-src
+
+    set config        tests/nginx.conf
+    set port(fastcgi) 9005
+    set port(nginx)   8085
+    set tclsh         [info nameofexecutable]
+
+    set tempDir [temp-dir fcgi-nginx-test]
+    file mkdir $tempDir/proxy
+
+
+    render-template $config.template $config [list \
+        %DIR% $tempDir \
+        %PORT% $port(nginx) \
+        %FASTCGI_PORT% $port(fastcgi) \
+    ]
+
+    set pid(nginx) [run nginx -c [pwd]/tests/nginx.conf &]
+    set url http://localhost:$port(nginx)
+
+    tcltest::test echo-cgi-1.1 {} -body {
+        set pid(echo-cgi) \
+            [run $tclsh example/echo-cgi.tcl -port $port(fastcgi) &]
+        after 1000
+
+        try {
+            set token [http::geturl $url]
+            set html [http::data $token]
+            http::cleanup $token
+
+            set html
+        } finally {
+            exec kill $pid(echo-cgi)
+        }
+    } -match glob -result {*<title>fcgi.tcl: echo-cgi*}
+
+    tcltest::test echo-tcl-1.1 {} -body {
+        set pid(echo-tcl) \
+            [run $tclsh example/echo-tcl.tcl -port $port(fastcgi) &]
+        after 1000
+
+        try {
+            set token [http::geturl $url?hello=world]
+            set html [http::data $token]
+            http::cleanup $token
+
+            set html
+        } finally {
+            exec kill $pid(echo-tcl)
+        }
+    } -match glob -result {*<dt>QUERY_STRING</dt><dd>hello=world</dd>*}
+
+    tcltest::test vclock-1.1 {} -body {
+        set pid(vclock) \
+            [run $tclsh example/vclock.tcl -port $port(fastcgi) &]
+        after 1000
+
+        try {
+            set query [http::formatQuery type 12-hour]
+            set token [http::geturl $url -query $query]
+            set html [http::data $token]
+            http::cleanup $token
+
+            set html
+        } finally {
+            exec kill $pid(vclock)
+        }
+    } -match regexp -result {value="12-hour"\s+checked}
+
+    exec kill $pid(nginx)
+
+    # Exit with a nonzero status if there are failed tests.
+    set failed [expr {$tcltest::numTests(Failed) > 0}]
+
+    tcltest::cleanupTests
+    return $failed
+}
+
+
+proc temp-dir nameTemplate {
+    close [file tempfile temp_dir $nameTemplate]
+    file delete $temp_dir
+    tcltest::makeDirectory $temp_dir
+    file attributes $temp_dir -permissions 0700
+
+    return $temp_dir
+}
+
+
+proc render-template {src dest mapping} {
+    set template [fileutil::cat $src]
+    set template [string map $mapping $template]
+    fileutil::writeFile $dest $template
+}
+
+
+proc run args {
+    exec >@ stdout 2>@ stderr {*}$args
+}
+
+
+exit [main]
