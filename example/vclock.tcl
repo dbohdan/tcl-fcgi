@@ -9,7 +9,7 @@ package require Fcgi
 package require Fcgi::helpers
 
 namespace eval vclock {
-    namespace path {::fcgi ::fcgi::helpers}
+    namespace path ::fcgi::helpers
 
     variable EXPECT_HOST    http://expect.sourceforge.net
     variable CGITCL         $EXPECT_HOST/cgi.tcl

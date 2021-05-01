@@ -16,7 +16,7 @@ package require Fcgi
 package require Fcgi::helpers
 
 namespace eval echo-tcl {
-    namespace path {::fcgi ::fcgi::helpers}
+    namespace path ::fcgi::helpers
 }
 
 proc echo-tcl::main {} {
