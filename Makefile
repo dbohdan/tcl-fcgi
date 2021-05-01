@@ -12,7 +12,7 @@
 PREFIX       = /usr/local
 
 DATADIR      = $(PREFIX)/share/tcltk
-MANDIR       = $(PREFIX)/man/man3
+MANDIR       = $(PREFIX)/share/man/man3
 SCRIPTDIR    = $(DATADIR)/fcgi
 
 #
