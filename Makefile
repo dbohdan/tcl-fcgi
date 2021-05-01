@@ -36,6 +36,10 @@ install-man: doc/fcgi.tcl.man
 	mkdir -p $(MANDIR)
 	gzip -9 < $< > $(MANDIR)/fcgi.3tcl.gz
 
+test:
+	./tests/fcgi-nginx.test
+
+.PHONY: install install-man install-tcl-src test
 ###############################################################################
 # end of Makefile
 ###############################################################################
