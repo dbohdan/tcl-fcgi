@@ -12,7 +12,7 @@ proc main {} {
 
     set config        tests/nginx.conf
     set port(fastcgi) 9005
-    set port(nginx)   8085
+    set port(http)    8085
     set tclsh         [info nameofexecutable]
 
     set tempDir [temp-dir fcgi-nginx-test]
@@ -20,13 +20,13 @@ proc main {} {
 
 
     render-template $config.template $config [list \
-        %DIR% $tempDir \
-        %PORT% $port(nginx) \
+        %DIR%          $tempDir \
+        %HTTP_PORT%    $port(http) \
         %FASTCGI_PORT% $port(fastcgi) \
     ]
 
     set pid(nginx) [run nginx -c [pwd]/tests/nginx.conf &]
-    set url http://localhost:$port(nginx)
+    set url http://localhost:$port(http)
 
     tcltest::test echo-cgi-1.1 {} -body {
         set pid(echo-cgi) \

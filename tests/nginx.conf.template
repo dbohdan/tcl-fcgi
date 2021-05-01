@@ -11,7 +11,7 @@ http {
 
     server {
         access_log /dev/stderr;
-        listen 127.0.0.1:%PORT%;
+        listen 127.0.0.1:%HTTP_PORT%;
         client_body_temp_path %DIR%/client 1 2;
         location / {
             fastcgi_param  GATEWAY_INTERFACE  CGI/1.1;
