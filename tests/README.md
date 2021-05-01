@@ -1,9 +1,9 @@
-# A little integration test
+# Integration tests
 
-For \*nix.  Before you run `test.sh`, install Nginx and cURL.
+For \*nix.  Before you run `fcgi-nginx.test`, install Nginx.
 
 ## Debian/Ubuntu
 
 ```sh
-sudo apt install -y curl nginx
+sudo apt install -y nginx
 ```
