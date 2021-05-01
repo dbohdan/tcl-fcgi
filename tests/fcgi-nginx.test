@@ -8,7 +8,7 @@ package require tcltest
 proc main {} {
     cd [file dirname [info script]]/..
 
-    set ::env(TCLLIBPATH) [pwd]/tcl-src
+    lappend ::env(TCLLIBPATH) [pwd]/tcl-src
 
     set config        tests/nginx.conf
     set port(fastcgi) 9005
