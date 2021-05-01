@@ -45,6 +45,9 @@ proc fcgi::helpers::tmpl_parser template {
 }
 
 
+# Warning: if $::env(REQUEST_METHOD) is "POST", [ncgi::nvlist] reads the query
+# data from stdin (as of ncgi version 1.4.4).  Keep this in mind if you want to
+# use this proc without Fcgi, which overrides [read stdin].
 proc fcgi::helpers::query-params names {
     set nvlist [ncgi::nvlist]
     set params {}
