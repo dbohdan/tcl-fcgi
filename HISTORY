@@ -16,7 +16,7 @@ Fcgi.tcl HISTORY
 	directory
 
 
-1998-01-28  version 0.3
+1998-01-28  version 0.4
 	additional cleanup of code (remove early debugging info) 
 	modify tclFcgiCmd.c to better deal with resetting cgi.tcl state
 
@@ -24,3 +24,11 @@ Fcgi.tcl HISTORY
 2021-04-23  version 0.5  dbohdan
         remove the C source code (you can get newer) and autoconf; stop
         overriding top-level channel commands; update the examples.
+
+
+2021-05-01
+        go back to overriding top-level channel commands: without [read stdin]
+        acting like in a CGI environment [ncgi::query] hangs on a POST
+        request; fix the override code with Tom Poindexter's patch from
+        comp.lang.tcl; add package Fcgi::helpers (tcl-src/fcgi-helpers.tcl);
+        update the examples some more.

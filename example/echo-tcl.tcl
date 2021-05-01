@@ -13,29 +13,21 @@
 #
 
 package require Fcgi
+package require Fcgi::helpers
 
 namespace eval echo-tcl {
-    namespace path ::fcgi
-}
-
-proc echo-tcl::printEnv {label envArrayName} {
-    upvar $envArrayName envArray
-    puts "$label:<br>\n<pre>"
-    foreach name [lsort [array names envArray]] {
-        puts "$name=$envArray($name)"
-    }
-    puts "</pre><p>"
+    namespace path ::fcgi::helpers
 }
 
 proc echo-tcl::main {} {
     global env
-    array set initialEnv [array get env]
+    set initialEnv [array get env]
 
     set count 0
 
     while {[FCGI_Accept] >= 0 } {
         incr count
-        puts -nonewline "Content-type: text/html\r\n\r\n"
+        puts -nonewline "Content-Type: text/html\r\n\r\n"
         puts "<title>FastCGI echo (Tcl)</title>"
         puts "<h1>FastCGI echo (Tcl)</h1>"
         puts "Request number $count <p>"
@@ -44,24 +36,39 @@ proc echo-tcl::main {} {
         } else {
             set len 0
         }
+
         if {$len == 0} {
             puts "No data from standard input.<p>"
         } else {
             puts "Standard input:<br>\n<pre>"
-            for {set i 0} {$i < $len} {incr i} {
-                set ch [read stdin 1]
-                if {$ch == ""} {
-                    puts -nonewline "Error: Not enough bytes received "
-                    puts "on standard input<p>"
-                    break
-                }
-                puts -nonewline $ch
+
+            set buf [read stdin $len]
+            if {[string length $buf] == $len} {
+                puts [entities $buf]\n
+            } else {
+                puts "Error: Not enough bytes received on standard input"
             }
-            puts "\n</pre><p>"
+
+            puts </pre><p>
         }
-        printEnv "Request environment" env
-        printEnv "Initial environment" initialEnv
+
+        set request {}
+        foreach name [array names env] {
+            if {![dict exists $initialEnv $name]} {
+                dict set request $name $env($name)
+            }
+        }
+        puts "<h2>Request environment</h2>\n[htmlize-dict $request]"
+        puts "<h2>Initial environment</h2>\n[htmlize-dict $initialEnv]"
     }
+}
+
+proc echo-tcl::htmlize-dict dict {
+    set s <dl>\n
+    dict for {k v} $dict {
+        append s <dt>[entities $k]</dt><dd>[entities $v]</dd>\n
+    }
+    append s </dl>
 }
 
 echo-tcl::main

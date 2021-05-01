@@ -1,87 +1,117 @@
 #! /usr/bin/env tclsh
-# vclock.fcg -- borrowed from Don Libes' cgi.tcl, and modified slightly for
-#  fcgi.tcl
+# vclock.tcl -- originally borrowed from Don Libes' cgi.tcl but rewritten
 #
 
 
-package require cgi
+package require ncgi
+package require textutil
 package require Fcgi
+package require Fcgi::helpers
 
-# common definitions for all examples (was example.tcl)
+namespace eval vclock {
+    namespace path ::fcgi::helpers
 
-set EXPECT_HOST	http://expect.nist.gov
-set CGITCL	$EXPECT_HOST/cgi.tcl
-
-cgi_admin_mail_addr bounce_to_me@nowhere.stuff
-
-set TOP target=_top
-cgi_link CGITCL   "cgi.tcl homepage"		$CGITCL $TOP
-
-
-
-# fcgi.tcl:
-# redefine cgi_cgi to append .fcg instead of .cgi
-rename cgi_cgi _old_cgi_cgi
-proc cgi_cgi {args} {
-  set docPath [eval _old_cgi_cgi $args]
-  regsub {.cgi$} $docPath .fcg docPath
-  return $docPath
+    variable EXPECT_HOST    http://expect.sourceforge.net
+    variable CGITCL         $EXPECT_HOST/cgi.tcl
+    variable TEMPLATE [textutil::undent {
+        <!doctype html>
+        <html><head><title>Virtual Clock</title></head>
+        <body>
+        <h1>Virtual Clock - fcgi.tcl style</h1>
+        <p>Virtual clock has been accessed <%& $counter %> times since
+        startup.</p>
+        <hr>
+        <p>At the tone, the time will be <strong><%& $time %></strong></p>
+        <% if {[dict get $query debug]} { %>
+            <pre>     Query: <%& $query %>
+            Failed: <%& $failed %></pre>
+        <% } %>
+        <hr>
+        <h2>Set Clock Format</h2>
+        <form method="post">
+        Show:
+        <% foreach name {day month day-of-month year} { %>
+          <input type="checkbox" id="<%& $name %>" name="<%& $name %>"
+                 <%& [dict get $query $name] ? {checked} : {} %>>
+          <label for="<%& $name %>"><%& $name %></label>
+        <% } %>
+        <br>
+        Time style:
+        <% foreach value {12-hour 24-hour} { %>
+          <input type="radio" id="<%& $value %>" name="type" value="<%& $value %>"
+                 <%& [dict get $query type] eq $value ? {checked} : {} %>>
+          <label for="<%& $value %>"><%& $value %></label>
+        <% } %>
+        <br>
+        <input type="reset">
+        <input type="submit">
+        </form>
+        <hr>
+        See Don Libes' cgi.tcl and original vclock
+        at the <a href="<%& $CGITCL %>"><%& $CGITCL %></a>
+        </body>
+        </html>
+    }]
 }
 
-set counter 0
-while {[FCGI_Accept] >= 0} {
 
-  cgi_eval {
+proc vclock::main {} {
+    variable CGITCL
+    variable TEMPLATE
 
-    cgi_input
-    cgi_root [file dirname $env(SCRIPT_NAME)]
+    proc page {query failed counter time CGITCL} [tmpl_parser $TEMPLATE]
 
-    set format ""
-    if [llength [cgi_import_list]] {
-	if 0==[catch {cgi_import time}] {
-	  append format [expr {[cgi_import type] == "12-hour" ? "%r " : "%T " }]
-	}
-	catch {cgi_import day;          append format "%a "}
-	catch {cgi_import month;        append format "%h "}
-	catch {cgi_import day-of-month; append format "%d "}
-	catch {cgi_import year;         append format "'%y "}
-    } else {
-	append format "%r %a %h %d '%y"
+    set counter 0
+
+    while {[FCGI_Accept] >= 0} {
+        incr counter
+
+        puts -nonewline "Content-Type: text/html\r\n\r\n"
+
+        lassign [validate-params {
+            day          boolean                   false
+            day-of-month boolean                   false
+            debug        boolean                   false
+            month        boolean                   false
+            type         {regexp ^(?:12|24)-hour$} 24-hour
+            year         boolean                   false
+        } [query-params {day day-of-month debug month type year}]] query failed
+
+        set format [construct-format $query]
+        set time [clock format [clock seconds] -format $format]
+
+        puts [page $query $failed $counter $time $CGITCL]
+
+        ncgi::reset
+    } ;# while {[FCGI_Accept] >= 0}
+}
+
+
+proc vclock::construct-format query {
+    if {[dict get $query type] eq {}} {
+        return {%r %a %h %d '%y}
     }
 
-    # fastcgi - use tcl's 'clock' command instead of 'date' command
-    set time [clock format [clock seconds] -format $format]
+    set format [expr {
+        [dict get $query type] eq {12-hour} ? {%r} : {%T}
+    }]
 
-    cgi_title "Virtual Clock"
-
-    cgi_body {
-	h1 "Virtual Clock - fcgi.tcl style"
-	p "Virtual clock has been accessed [incr counter] times since startup."
-	hr
-	p "At the tone, the time will be [strong $time]"
-	hr
-	h2 "Set Clock Format"
-
-	cgi_form vclock {
-	    puts "Show: "
-	    foreach x {time day month day-of-month year} {
-		cgi_checkbox $x checked
-		put $x
-	    }
-	    br
-	    puts "Time style: "
-	    cgi_radio_button type=12-hour checked;put "12-hour"
-	    cgi_radio_button type=24-hour        ;put "24-hour"
-	    br
-	    cgi_reset_button
-	    cgi_submit_button =Set
-	}
-	hr
-	cgi_puts "See Don Libes' cgi.tcl and original vclock "
-	cgi_puts "at the [cgi_link CGITCL]"
+    foreach {name fragment} {
+        day { %a}
+        month { %h}
+        day-of-month { %d}
+        year { '%y}
+    } {
+        if {[dict get $query $name] ne {}} {
+            append format $fragment
+        }
     }
-  }
 
-}  ;# while FCGI_Accept
+    return $format
+}
 
 
+# If this is the main script...
+if {[info exists argv0] && ([file tail [info script]] eq [file tail $argv0])} {
+    vclock::main
+}

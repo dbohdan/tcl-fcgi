@@ -12,7 +12,7 @@
 PREFIX       = /usr/local
 
 DATADIR      = $(PREFIX)/share/tcltk
-MANDIR       = $(PREFIX)/man/man3
+MANDIR       = $(PREFIX)/share/man/man3
 SCRIPTDIR    = $(DATADIR)/fcgi
 
 #
@@ -29,12 +29,17 @@ install: install-tcl-src
 install-tcl-src: install-man
 	mkdir -p $(SCRIPTDIR)
 	cp tcl-src/fcgi.tcl $(SCRIPTDIR)
+	cp tcl-src/fcgi-helpers.tcl $(SCRIPTDIR)
 	cp tcl-src/pkgIndex.tcl $(SCRIPTDIR)
 
 install-man: doc/fcgi.tcl.man
 	mkdir -p $(MANDIR)
 	gzip -9 < $< > $(MANDIR)/fcgi.3tcl.gz
 
+test:
+	./tests/fcgi-nginx.test
+
+.PHONY: install install-man install-tcl-src test
 ###############################################################################
 # end of Makefile
 ###############################################################################
