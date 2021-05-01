@@ -12,7 +12,7 @@ set count 0
 while {[FCGI_Accept] >= 0 } {
   incr count
 
-  puts "Content-Type: text/html\r\n\r\n"
+  puts -nonewline "Content-Type: text/html\r\n\r\n"
   html::init
 
   puts "<!doctype html>"

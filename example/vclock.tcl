@@ -66,7 +66,7 @@ proc vclock::main {} {
     while {[FCGI_Accept] >= 0} {
         incr counter
 
-        puts "Content-Type: text/html\r\n\r\n"
+        puts -nonewline "Content-Type: text/html\r\n\r\n"
 
         lassign [validate-params {
             day          boolean                   false

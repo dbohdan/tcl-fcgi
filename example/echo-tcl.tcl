@@ -27,7 +27,7 @@ proc echo-tcl::main {} {
 
     while {[FCGI_Accept] >= 0 } {
         incr count
-        puts -nonewline "Content-type: text/html\r\n\r\n"
+        puts -nonewline "Content-Type: text/html\r\n\r\n"
         puts "<title>FastCGI echo (Tcl)</title>"
         puts "<h1>FastCGI echo (Tcl)</h1>"
         puts "Request number $count <p>"
