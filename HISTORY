@@ -30,4 +30,5 @@ Fcgi.tcl HISTORY
         go back to overriding top-level channel commands: without [read stdin]
         acting like in a CGI environment [ncgi::query] hangs on a POST
         request; fix the override code with Tom Poindexter's patch from
-        comp.lang.tcl; update the examples some more.
+        comp.lang.tcl; add package Fcgi::helpers (tcl-src/fcgi-helpers.tcl);
+        update the examples some more.
