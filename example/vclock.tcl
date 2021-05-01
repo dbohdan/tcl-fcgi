@@ -8,7 +8,6 @@ package require textutil
 package require Fcgi
 package require Fcgi::helpers
 
-
 namespace eval vclock {
     namespace path {::fcgi ::fcgi::helpers}
 
@@ -29,7 +28,7 @@ namespace eval vclock {
         <% } %>
         <hr>
         <h2>Set Clock Format</h2>
-        <form>
+        <form method="post">
         Show:
         <% foreach name {day month day-of-month year} { %>
           <input type="checkbox" id="<%= $name %>" name="<%= $name %>"
