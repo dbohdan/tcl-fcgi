@@ -31,7 +31,7 @@ proc main {} {
     tcltest::test echo-cgi-1.1 {} -body {
         set pid(echo-cgi) \
             [run $tclsh example/echo-cgi.tcl -port $port(fastcgi) &]
-        after 1000
+        after 500
 
         try {
             set token [http::geturl $url]
@@ -47,7 +47,7 @@ proc main {} {
     tcltest::test echo-tcl-1.1 {} -body {
         set pid(echo-tcl) \
             [run $tclsh example/echo-tcl.tcl -port $port(fastcgi) &]
-        after 1000
+        after 500
 
         try {
             set token [http::geturl $url?hello=world]
@@ -63,7 +63,7 @@ proc main {} {
     tcltest::test vclock-1.1 {} -body {
         set pid(vclock) \
             [run $tclsh example/vclock.tcl -port $port(fastcgi) &]
-        after 1000
+        after 500
 
         try {
             set query [http::formatQuery type 12-hour]
@@ -78,6 +78,7 @@ proc main {} {
     } -match regexp -result {value="12-hour"\s+checked}
 
     exec kill $pid(nginx)
+    after 500
 
     # Exit with a nonzero status if there are failed tests.
     set failed [expr {$tcltest::numTests(Failed) > 0}]
