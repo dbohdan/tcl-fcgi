@@ -108,6 +108,13 @@ set fcgi(fcgi_mpxs_conns)    0		;# don't multiplex connections
 #set fcgi($requestId,exitCode)  0	;# exit code
 #set fcgi($requestId,role)      0	;# fcgi role
 
+# rename Tcl io commands so we can redefine them as fcgi aware
+rename gets  _gets_tcl
+rename read  _read_tcl
+rename flush _flush_tcl
+rename puts  _puts_tcl
+rename eof   _eof_tcl
+
 
 }   ;# end of namespace eval fcgi
 
@@ -126,7 +133,7 @@ proc fcgi::gets {args} {
   variable fcgi
   set requestId $fcgi(requestId)
   if {$requestId == -1} {
-    return [uplevel 1 ::gets $args]
+    return [uplevel 1 fcgi::_gets_tcl $args]
   }
   if {[lindex $args 0] == "stdin"} {
     if {$fcgi($requestId,dataRedir) && ! $fcgi($requestId,dataEof)} {
@@ -158,7 +165,7 @@ proc fcgi::gets {args} {
       return $msg
     }
   } else {
-    return [uplevel 1 ::gets $args]
+    return [uplevel 1 fcgi::_gets_tcl $args]
   }
 }
 
@@ -170,7 +177,7 @@ proc fcgi::read {args} {
   variable fcgi
   set requestId $fcgi(requestId)
   if {$requestId == -1} {
-    return [uplevel 1 ::read $args]
+    return [uplevel 1 fcgi::_read_tcl $args]
   }
 
   # fill stdin or data buffer if stdin channel
@@ -195,7 +202,7 @@ proc fcgi::read {args} {
       set msg [string trim $fcgi($requestId,stdin) \nl]
       returm $msg
     } else {
-      return [uplevel 1 ::read $args]
+      return [uplevel 1 fcgi::_read_tcl $args]
     }
   } else  {
     if {[lindex $args 0] == "stdin"} {
@@ -212,7 +219,7 @@ proc fcgi::read {args} {
       }
       return $msg
     } else {
-      return [uplevel 1 ::read $args]
+      return [uplevel 1 fcgi::_read_tcl $args]
     }
   }
 }
@@ -225,7 +232,7 @@ proc fcgi::flush {file} {
   variable fcgi
   set requestId $fcgi(requestId)
   if {$requestId == -1} {
-    return [uplevel 1 ::flush $file]
+    return [uplevel 1 fcgi::_flush_tcl $file]
   }
   if {$file == "stdout" || $file == "stderr"} {
     set num [string length $fcgi($requestId,$file)]
@@ -244,7 +251,7 @@ proc fcgi::flush {file} {
       set num [string length $fcgi($requestId,$file)]
     }
   } else {
-    uplevel 1 ::flush $file
+    uplevel 1 fcgi::_flush_tcl $file
   }
   return ""
 }
@@ -258,7 +265,7 @@ proc fcgi::puts {args} {
   variable fcgi
   set requestId $fcgi(requestId)
   if {$requestId == -1} {
-    return [uplevel 1 ::puts $args]
+    return [uplevel 1 fcgi::_puts_tcl $args]
   }
   switch [llength $args] {
     1 {
@@ -274,7 +281,7 @@ proc fcgi::puts {args} {
         if {$file == "stdout" || $file == "stderr"} {
           append fcgi($requestId,$file) [lindex $args 1] \n
         } else {
-          uplevel 1 ::puts $args
+          uplevel 1 fcgi::_puts_tcl $args
         }
       }
     }
@@ -284,7 +291,7 @@ proc fcgi::puts {args} {
 	 ($file == "stdout" || $file == "stderr")} {
         append fcgi($requestId,$file) [lindex $args 2]
       } else {
-        uplevel 1 ::puts $args
+        uplevel 1 fcgi::_puts_tcl $args
       }
     }
   }
@@ -309,7 +316,7 @@ proc fcgi::eof {file} {
   variable fcgi
   set requestId $fcgi(requestId)
   if {$requestId == -1} {
-    return [uplevel 1 ::eof $file]
+    return [uplevel 1 fcgi::_eof_tcl $file]
   }
   if {$file == "stdin"} {
     if {[string length $fcgi($requestId,$file)] == 0 && \
@@ -319,7 +326,7 @@ proc fcgi::eof {file} {
       return 0
     }
   } else {
-    return [uplevel 1 ::eof $file]
+    return [uplevel 1 fcgi::_eof_tcl $file]
   }
 }
 
@@ -340,7 +347,7 @@ proc fcgi::readFcgiRecord {sock} {
 
   while {[string length $msg] != $fcgi(FCGI_HEADER_LEN)} {
     append msg \
-	[::read $sock [expr $fcgi(FCGI_HEADER_LEN) - [string length $msg]]]
+	[_read_tcl $sock [expr $fcgi(FCGI_HEADER_LEN) - [string length $msg]]]
   }
 
   set version         0
@@ -365,14 +372,14 @@ proc fcgi::readFcgiRecord {sock} {
   set content ""
   while {[string length $content] != $contentLength} {
     append content \
-	[::read $sock [expr $contentLength - [string length $content]]]
+	[_read_tcl $sock [expr $contentLength - [string length $content]]]
   }
 
   # read msg padding
   set padding ""
   while {[string length $padding] != $paddingLength} {
     append padding \
-	[::read $sock [expr $paddingLength - [string length $padding]]]
+	[_read_tcl $sock [expr $paddingLength - [string length $padding]]]
   }
 
   return [list $version $type $requestId $contentLength $content]
@@ -388,10 +395,10 @@ proc fcgi::writeFcgiRecord {sock version type requestId content} {
   # ccSScc = version type requestId contentLength padding reserved
 
   catch {
-    ::puts -nonewline $sock \
+    _puts_tcl -nonewline $sock \
 	   [binary format ccSScc $version $type $requestId $contentLength 0 0]
-    ::puts -nonewline $sock $content
-    ::flush $sock
+    _puts_tcl -nonewline $sock $content
+    _flush_tcl $sock
   }
 
 }
@@ -1030,12 +1037,25 @@ namespace export gets read flush puts eof
 }   ;# end of namespace eval fcgi
 
 
+# https://groups.google.com/g/comp.lang.tcl/c/z6XXz2yKeRo/m/64Rc-0cHJFoJ
+catch auto_import
+rename auto_import FCGI_auto_import
+
+# make the application use fcgi wrappers for these io commands
+namespace import -force fcgi::gets
+namespace import -force fcgi::read
+namespace import -force fcgi::flush
+namespace import -force fcgi::puts
+namespace import -force fcgi::eof
+
 # import the application fcgi commands
 namespace import fcgi::FCGI_Accept
 namespace import fcgi::FCGI_Finish
 namespace import fcgi::FCGI_SetExitStatus
 namespace import fcgi::FCGI_StartFilterData
 namespace import fcgi::FCGI_SetBufSize
+
+rename FCGI_auto_import auto_import
 
 
 # finis
