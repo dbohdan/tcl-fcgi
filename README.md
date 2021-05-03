@@ -3,8 +3,8 @@
 Copyright 1998 Tom Poindexter, all rights reserved.
 Portions copyright 2021 D. Bohdan.
 
-Fcgi.tcl is distributed under a BSD-style license.  
-See the file [`LICENSE.TERMS`](LICENSE.TERMS) for details.
+Fcgi.tcl is distributed under a BSD-style license like Tcl's own.
+See the file [LICENSE.TERMS](LICENSE.TERMS) for details.
 
 
 ## What is Fcgi.tcl?
@@ -36,7 +36,7 @@ written to keep up with the lastest Tcl releases.
 
 ## Requirements
 
-* Tcl 8.0.3 (Tcl 8.5 for `Fcgi::helpers`)
+* Tcl 8.0.3 (Tcl 8.5 for `Fcgi::helpers` and the examples)
 * [TclX](https://wiki.tcl-lang.org/page/TclX) (optional)
 * A Web server supporting the FastCGI protocol:
     * Apache 2 using the [mod\_fcgi](https://httpd.apache.org/mod_fcgid/)
