@@ -3,6 +3,7 @@
 package require fileutil
 package require http
 package require tcltest
+package require try
 
 
 proc main {} {
@@ -88,13 +89,14 @@ proc main {} {
 }
 
 
-proc temp-dir nameTemplate {
-    close [file tempfile temp_dir $nameTemplate]
-    file delete $temp_dir
-    tcltest::makeDirectory $temp_dir
-    file attributes $temp_dir -permissions 0700
+proc temp-dir namePrefix {
+    set dir [fileutil::tempfile $namePrefix]
+    file delete $dir
 
-    return $temp_dir
+    tcltest::makeDirectory $dir
+    file attributes $dir -permissions 0700
+
+    return $dir
 }
 
 
