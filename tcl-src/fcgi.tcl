@@ -7,7 +7,7 @@
 # http://www.nyx.net/~tpoindex
 #  see the file LICENSE.TERMS for complete copyright and licensing info
 #
-#  FastCGI interface for Tcl 8.0
+#  FastCGI interface for Tcl
 #    Extended Tcl (aka Tclx) is required for 'AppClass' style connections,
 #    (the 'package require Tclx' is near the bottom of this file, and only
 #    used when needed.)
@@ -15,7 +15,7 @@
 #
 
 
-package provide Fcgi 0.5.0
+package provide Fcgi 0.5.1
 
 namespace eval fcgi {
 
@@ -956,7 +956,7 @@ global env
 #
 
 # callback proc from Tcl's 'socket -server'
-proc fcgiAccept {sock client port} {
+proc ::fcgiAccept {sock client port} {
   global fcgiNewSock
   variable fcgi
   set fcgi(newClient) $client
@@ -965,7 +965,7 @@ proc fcgiAccept {sock client port} {
 }
 
 # blocking 'accept' for Tcl sockets
-proc fcgiSockAccept {sock} {
+proc ::fcgiSockAccept {sock} {
   global fcgiNewSock
   variable fcgi
   vwait fcgiNewSock
@@ -975,7 +975,7 @@ proc fcgiSockAccept {sock} {
 }
 
 # blocking 'accept' for TclX sockets
-proc fcgiTclxAccept {sock} {
+proc ::fcgiTclxAccept {sock} {
   variable fcgi
   set fcgi(newSock)   ""
   set fcgi(newClient) ""
@@ -997,11 +997,10 @@ proc fcgiTclxAccept {sock} {
 set port -1
 
 # check for argv "-port xxx" first
-global argv argc
-for {set i 0} {$i < $argc} {incr i} {
-  if {[string compare [lindex $argv $i] "-port"] == 0} {
+for {set i 0} {$i < $::argc} {incr i} {
+  if {[string compare [lindex $::argv $i] "-port"] == 0} {
     incr i
-    scan [lindex $argv $i] %d port
+    scan [lindex $::argv $i] %d port
   }
 }
 
