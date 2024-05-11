@@ -14,6 +14,7 @@ PREFIX       = /usr/local
 DATADIR      = $(PREFIX)/share/tcltk
 MANDIR       = $(PREFIX)/share/man/man3
 SCRIPTDIR    = $(DATADIR)/fcgi
+TCLSH        = tclsh
 
 #
 # end of defines
@@ -37,7 +38,7 @@ install-man: doc/fcgi.tcl.man
 	gzip -9 < $< > $(MANDIR)/fcgi.3tcl.gz
 
 test:
-	./tests/fcgi-nginx.test
+	$(TCLSH) tests/fcgi-nginx.test
 
 .PHONY: install install-man install-tcl-src test
 ###############################################################################
