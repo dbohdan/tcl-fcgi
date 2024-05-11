@@ -1,0 +1,14 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y nginx tcl tcllib
+      - name: Run tests
+        run: |
+          make test
