@@ -32,3 +32,8 @@ Fcgi.tcl HISTORY
         request; fix the override code with Tom Poindexter's patch from
         comp.lang.tcl; add package Fcgi::helpers (tcl-src/fcgi-helpers.tcl);
         update the examples some more.
+
+
+2024-05-11  version 0.5.1
+        port to Tcl 9;
+        keep and restore Tcl 8.0 compatibility.
