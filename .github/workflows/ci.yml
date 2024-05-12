@@ -32,7 +32,7 @@ jobs:
             # doas(1) isn't configured OpenBSD.
             # See https://github.com/cross-platform-actions/action/issues/75
             sudo .github/workflows/prepare.sh
-            .github/workflows/run.sh
+            .github/workflows/test.sh
 
   linux:
     runs-on: ubuntu-latest
@@ -44,7 +44,7 @@ jobs:
           sudo .github/workflows/prepare.sh
       - name: Run tests
         run: |
-          .github/workflows/run.sh
+          .github/workflows/test.sh
 
   mac:
     runs-on: macos-latest
@@ -56,4 +56,4 @@ jobs:
           .github/workflows/prepare.sh
       - name: Run tests
         run: |
-          .github/workflows/run.sh
+          .github/workflows/test.sh
