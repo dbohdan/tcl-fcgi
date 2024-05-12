@@ -37,3 +37,7 @@ Fcgi.tcl HISTORY
 2024-05-11  version 0.5.1
         port to Tcl 9;
         keep and restore Tcl 8.0 compatibility.
+
+
+2024-05-12
+        fix the tests on OpenBSD.

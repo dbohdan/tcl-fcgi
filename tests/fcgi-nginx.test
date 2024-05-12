@@ -19,15 +19,15 @@ proc main {} {
     set tempDir [temp-dir fcgi-nginx-test]
     file mkdir $tempDir/proxy
 
-
     render-template $config.template $config [list \
         %DIR%          $tempDir \
         %HTTP_PORT%    $port(http) \
         %FASTCGI_PORT% $port(fastcgi) \
     ]
 
-    set pid(nginx) [run nginx -c [pwd]/tests/nginx.conf &]
+    set pid(nginx) [run nginx -c [pwd]/tests/nginx.conf -p $tempDir &]
     set url http://localhost:$port(http)
+
 
     tcltest::test echo-cgi-1.1 {} -body {
         set pid(echo-cgi) \
@@ -80,6 +80,7 @@ proc main {} {
 
     exec kill $pid(nginx)
     after 500
+
 
     # Exit with a nonzero status if there are failed tests.
     set failed [expr {$tcltest::numTests(Failed) > 0}]
