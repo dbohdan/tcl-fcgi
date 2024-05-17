@@ -1,5 +1,6 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
   bsd:
     runs-on: ${{ matrix.os.host }}
@@ -57,3 +58,15 @@ jobs:
       - name: Run tests
         run: |
           .github/workflows/test.sh
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          .github/workflows/prepare.ps1
+      - name: Run tests
+        run: |
+          .github/workflows/test.ps1
