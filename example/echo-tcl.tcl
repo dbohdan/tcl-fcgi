@@ -21,9 +21,9 @@ namespace eval echo-tcl {
 
 proc echo-tcl::main {} {
     global env
-    set initialEnv [array get env]
 
     set count 0
+    set initialEnv [array get env]
 
     while {[FCGI_Accept] >= 0 } {
         incr count
@@ -31,10 +31,10 @@ proc echo-tcl::main {} {
         puts "<title>FastCGI echo (Tcl)</title>"
         puts "<h1>FastCGI echo (Tcl)</h1>"
         puts "Request number $count <p>"
-        if [info exists env(CONTENT_LENGTH)] {
+
+        set len 0
+        catch {
             set len $env(CONTENT_LENGTH)
-        } else {
-            set len 0
         }
 
         if {$len == 0} {

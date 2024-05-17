@@ -10,7 +10,7 @@ http {
     scgi_temp_path %DIR%/scgi;
 
     server {
-        access_log /dev/stderr;
+        access_log access.log;
         listen 127.0.0.1:%HTTP_PORT%;
         client_body_temp_path %DIR%/client 1 2;
         location / {

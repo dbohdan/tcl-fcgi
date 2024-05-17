@@ -14,6 +14,7 @@ PREFIX       = /usr/local
 DATADIR      = $(PREFIX)/share/tcltk
 MANDIR       = $(PREFIX)/share/man/man3
 SCRIPTDIR    = $(DATADIR)/fcgi
+
 TCLSH        = tclsh
 
 #

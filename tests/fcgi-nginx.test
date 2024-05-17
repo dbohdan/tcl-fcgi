@@ -11,75 +11,74 @@ proc main {} {
 
     lappend ::env(TCLLIBPATH) [pwd]/tcl-src
 
-    set config        tests/nginx.conf
-    set port(fastcgi) 9005
-    set port(http)    8085
-    set tclsh         [info nameofexecutable]
-
-    set tempDir [temp-dir fcgi-nginx-test]
-    file mkdir $tempDir/proxy
-
-    render-template $config.template $config [list \
-        %DIR%          $tempDir \
-        %HTTP_PORT%    $port(http) \
-        %FASTCGI_PORT% $port(fastcgi) \
+    set port1k [expr { int(1000 * rand()) }]
+    set ::config [dict create \
+        fastcgiPort [expr { 9000 + $port1k }] \
+        httpPort [expr { 8000 + $port1k }] \
+        nginxConfig [pwd]/tests/nginx.conf \
+        tempDir [temp-dir fcgi-nginx-test] \
+        wait 500 \
     ]
 
-    set pid(nginx) [run nginx -c [pwd]/tests/nginx.conf -p $tempDir &]
-    set url http://localhost:$port(http)
+    file mkdir [config tempDir]/proxy/cache
+
+    set tclsh         [info nameofexecutable]
 
 
     tcltest::test echo-cgi-1.1 {} -body {
-        set pid(echo-cgi) \
-            [run $tclsh example/echo-cgi.tcl -port $port(fastcgi) &]
-        after 500
+        with-nginx {
+            set pid \
+                [run $tclsh example/echo-cgi.tcl -port [config fastcgiPort] &]
+            wait
 
-        try {
-            set token [http::geturl $url]
-            set html [http::data $token]
-            http::cleanup $token
+            try {
+                set token [http::geturl [url]]
+                set html [http::data $token]
+                http::cleanup $token
 
-            set html
-        } finally {
-            exec kill $pid(echo-cgi)
+                set html
+            } finally {
+                kill $pid
+            }
         }
     } -match glob -result {*<title>fcgi.tcl: echo-cgi*}
 
     tcltest::test echo-tcl-1.1 {} -body {
-        set pid(echo-tcl) \
-            [run $tclsh example/echo-tcl.tcl -port $port(fastcgi) &]
-        after 500
+        with-nginx {
+            set pid \
+                [run $tclsh example/echo-tcl.tcl -port [config fastcgiPort] &]
+            wait
 
-        try {
-            set token [http::geturl $url?hello=world]
-            set html [http::data $token]
-            http::cleanup $token
+            try {
+                set token [http::geturl [url]?hello=world]
+                set html [http::data $token]
+                http::cleanup $token
 
-            set html
-        } finally {
-            exec kill $pid(echo-tcl)
+                set html
+            } finally {
+                kill $pid
+            }
         }
     } -match glob -result {*<dt>QUERY_STRING</dt><dd>hello=world</dd>*}
 
     tcltest::test vclock-1.1 {} -body {
-        set pid(vclock) \
-            [run $tclsh example/vclock.tcl -port $port(fastcgi) &]
-        after 500
+        with-nginx {
+            set pid \
+                [run $tclsh example/vclock.tcl -port [config fastcgiPort] &]
+            wait
 
-        try {
-            set query [http::formatQuery type 12-hour]
-            set token [http::geturl $url -query $query]
-            set html [http::data $token]
-            http::cleanup $token
+            try {
+                set query [http::formatQuery type 12-hour]
+                set token [http::geturl [url] -query $query]
+                set html [http::data $token]
+                http::cleanup $token
 
-            set html
-        } finally {
-            exec kill $pid(vclock)
+                set html
+            } finally {
+                kill $pid
+            }
         }
     } -match regexp -result {value="12-hour"\s+checked}
-
-    exec kill $pid(nginx)
-    after 500
 
 
     # Exit with a nonzero status if there are failed tests.
@@ -95,9 +94,38 @@ proc temp-dir namePrefix {
     file delete $dir
 
     tcltest::makeDirectory $dir
-    file attributes $dir -permissions 0700
+    if {$::tcl_platform(platform) eq {unix}} {
+        file attributes $dir -permissions 0700
+    }
 
     return $dir
+}
+
+
+proc config key {
+    dict get $::config $key
+}
+
+
+proc with-nginx body {
+    dict incr ::config fastcgiPort
+    dict incr ::config httpPort
+
+    render-template [config nginxConfig].template [config nginxConfig] [list \
+        %DIR%          [config tempDir] \
+        %FASTCGI_PORT% [config fastcgiPort] \
+        %HTTP_PORT%    [config httpPort] \
+    ]
+
+    set nginxCmd [list nginx -c [config nginxConfig] -p [config tempDir]]
+    run {*}$nginxCmd &
+
+    try {
+        uplevel 1 $body
+    } finally {
+        run {*}$nginxCmd -s stop
+        wait
+    }
 }
 
 
@@ -110,6 +138,27 @@ proc render-template {src dest mapping} {
 
 proc run args {
     exec >@ stdout 2>@ stderr {*}$args
+}
+
+
+proc wait {} {
+    after [config wait]
+}
+
+
+proc url {} {
+    return http://localhost:[config httpPort]
+}
+
+
+proc kill pid {
+    set prefix [expr {
+        $::tcl_platform(platform) eq {windows}
+        ? {taskkill /pid}
+        : {kill}
+    }]
+
+    run {*}$prefix $pid
 }
 
 
