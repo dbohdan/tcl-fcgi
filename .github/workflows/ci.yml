@@ -30,7 +30,7 @@ jobs:
           version: ${{ matrix.os.version }}
           shell: bash
           run: |
-            # doas(1) isn't configured OpenBSD.
+            # doas(1) isn't configured on OpenBSD.
             # See https://github.com/cross-platform-actions/action/issues/75
             sudo .github/workflows/prepare.sh
             .github/workflows/test.sh
