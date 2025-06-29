@@ -45,3 +45,7 @@ Fcgi.tcl HISTORY
 
 2024-05-17  version 0.6.0
         port to Windows.
+
+
+2025-06-29  version 0.6.1
+        merge fcgi::read bug fixes by Phil Krylov.
