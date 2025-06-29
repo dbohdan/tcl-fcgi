@@ -15,7 +15,7 @@
 #
 
 
-package provide Fcgi 0.6.0
+package provide Fcgi 0.6.1
 
 namespace eval fcgi {
 
