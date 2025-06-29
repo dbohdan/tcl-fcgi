@@ -200,7 +200,7 @@ proc fcgi::read {args} {
     if {[lindex $args 1] == "stdin"} {
       # read from stdin buf until eof, chop last nl
       set msg [string trim $fcgi($requestId,stdin) \nl]
-      returm $msg
+      return $msg
     } else {
       return [uplevel 1 fcgi::_read_tcl $args]
     }
