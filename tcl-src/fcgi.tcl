@@ -97,13 +97,16 @@ set fcgi(fcgi_mpxs_conns)    0		;# don't multiplex connections
 #set fcgi($requestId,paramsEof) 0	;# environment eof marker
 #set fcgi($requestId,stdin)     ""	;# stdin buffer
 #set fcgi($requestId,stdinEof)  0	;# stdin eof marker
+#set fcgi($requestId,stdinEnc)  ""	;# stdin encoding
 #set fcgi($requestId,data)      ""	;# fcgi data buffer
 #set fcgi($requestId,dataEof)   0	;# fcgi data eof marker
 #set fcgi($requestId,dataRedir) 0	;# fcgi data redirected to stdin
 #set fcgi($requestId,stdout)    ""	;# stdout buffer
 #set fcgi($requestId,stdoutFlg) 0       ;# stdout written flag
+#set fcgi($requestId,stdoutEnc) ""      ;# stdout encoding
 #set fcgi($requestId,stderr)    ""	;# stderr buffer
 #set fcgi($requestId,stderrFlg) 0       ;# stderr written flag
+#set fcgi($requestId,stderrEnc) 0       ;# stderr encoding
 #set fcgi($requestId,keepConn)  0	;# keep connection
 #set fcgi($requestId,exitCode)  0	;# exit code
 #set fcgi($requestId,role)      0	;# fcgi role
@@ -114,6 +117,7 @@ rename read  _read_tcl
 rename flush _flush_tcl
 rename puts  _puts_tcl
 rename eof   _eof_tcl
+rename fconfigure _fconfigure_tcl
 
 
 }   ;# end of namespace eval fcgi
@@ -206,7 +210,7 @@ proc fcgi::read {args} {
     }
   } else  {
     if {[lindex $args 0] == "stdin"} {
-      # read from stdin buf specific num of bytes
+      # read from stdin buf specific num of characters
       if {[llength $args] > 1} {
         set num 0
 	scan [lindex $args 1] %d num
@@ -235,21 +239,27 @@ proc fcgi::flush {file} {
     return [uplevel 1 fcgi::_flush_tcl $file]
   }
   if {$file == "stdout" || $file == "stderr"} {
-    set num [string length $fcgi($requestId,$file)]
-    while {$num > 0} {
-      set num [expr $num<$fcgi(FCGI_MAX_LENGTH) ? $num : $fcgi(FCGI_MAX_LENGTH)]
-      set msg [string range $fcgi($requestId,$file) 0 [expr $num - 1]]
-      set fcgi($requestId,$file) \
-			      [string range $fcgi($requestId,$file) $num end]
-      if {$file == "stdout"} {
-	set type $fcgi(FCGI_STDOUT)
-      } else {
-	set type $fcgi(FCGI_STDERR)
-      }
+    if {$fcgi($requestId,${file}Enc) ni [list "" "binary"]} {
+      set buffer [encoding convertto $fcgi($requestId,${file}Enc) $fcgi($requestId,$file)]
+    } else {
+      set buffer $fcgi($requestId,$file)
+    }
+    if {$file == "stdout"} {
+      set type $fcgi(FCGI_STDOUT)
+    } else {
+      set type $fcgi(FCGI_STDERR)
+    }
+    set ofs 0
+    set len [string length $buffer]
+    set end [expr {$fcgi(FCGI_MAX_LENGTH) - 1}]
+    while {$ofs < $len} {
+      set msg [string range $buffer $ofs $end]
       writeFcgiRecord $fcgi($requestId,sock) $fcgi(FCGI_VERSION_1) $type \
 		      $requestId $msg
-      set num [string length $fcgi($requestId,$file)]
+      incr ofs $fcgi(FCGI_MAX_LENGTH)
+      incr end $fcgi(FCGI_MAX_LENGTH)
     }
+    set fcgi($requestId,$file) ""
   } else {
     uplevel 1 fcgi::_flush_tcl $file
   }
@@ -328,6 +338,37 @@ proc fcgi::eof {file} {
   } else {
     return [uplevel 1 fcgi::_eof_tcl $file]
   }
+}
+
+
+###############################################################################
+# fcgi "fconfigure" wrapper proc
+
+proc fcgi::fconfigure {args} {
+  variable fcgi
+  set requestId $fcgi(requestId)
+  if {$requestId != -1} {
+    set file [lindex $args 0]
+    if {$file == "stdin" || $file == "stdout" || $file == "stderr"} {
+      set args2 [list $file]
+      for {set i 1} {$i < [llength $args]} {incr i} {
+        set arg [lindex $args $i]
+        set arglen [string length $arg]
+        if {$arglen > 2 && [string equal -length $arglen $arg "-encoding"]} {
+	  if {$fcgi($requestId,$file) != ""} {
+	    flush $file
+	  }
+          incr i
+          set fcgi($requestId,${file}Enc) [lindex $args $i]
+        } else {
+          lappend args2 $arg
+        }
+      }
+      if {[llength $args2] == 1} return
+      set args $args2
+    }
+  }
+  uplevel 1 fcgi::_fconfigure_tcl $args
 }
 
 
@@ -588,6 +629,8 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
     default {return -1}
   }
 
+  array set buffer {}
+
   while {! [set $waitfor]} {
 
     if {[catch {set msg [readFcgiRecord $sock]}]} {
@@ -629,7 +672,7 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
 	  set fcgi($requestId,stdinEof) 1
 	} else {
 	  if {!$fcgi($requestId,dataRedir)} {
-	    append fcgi($requestId,stdin) $content
+	    append buffer($requestId) $content
 	  }
 	}
       } \
@@ -668,6 +711,13 @@ proc fcgi::processFcgiStream {sock requestId waitfor} {
     # end of switch
   }
 
+  foreach requestId [array names buffer] {
+    if {$fcgi($requestId,stdinEnc) ni [list "" "binary"]} {
+      append fcgi($requestId,stdin) [encoding convertfrom $fcgi($requestId,stdinEnc) $buffer($requestId)]
+    } else {
+      append fcgi($requestId,stdin) $buffer($requestId)
+    }
+  }
   return 1
 }
 
@@ -704,13 +754,16 @@ proc fcgi::cleanUpFcgi {requestId} {
   catch {unset fcgi($requestId,paramsEof)}
   catch {unset fcgi($requestId,stdin)    }
   catch {unset fcgi($requestId,stdinEof) }
+  catch {unset fcgi($requestId,stdinEnc) }
   catch {unset fcgi($requestId,data)     }
   catch {unset fcgi($requestId,dataEof)  }
   catch {unset fcgi($requestId,dataRedir)}
   catch {unset fcgi($requestId,stdout)   }
   catch {unset fcgi($requestId,stdoutFlg)}
+  catch {unset fcgi($requestId,stdoutEnc)}
   catch {unset fcgi($requestId,stderr)   }
   catch {unset fcgi($requestId,stderrFlg)}
+  catch {unset fcgi($requestId,stderrEnc)}
   catch {unset fcgi($requestId,keepConn) }
   catch {unset fcgi($requestId,exitCode) }
   catch {unset fcgi($requestId,role)     }
@@ -814,13 +867,16 @@ proc fcgi::FCGI_Accept {} {
   set fcgi($requestId,paramsEof) 0	;# environment eof marker
   set fcgi($requestId,stdin)     ""	;# stdin buffer
   set fcgi($requestId,stdinEof)  0	;# stdin eof marker
+  set fcgi($requestId,stdinEnc)  ""	;# stdin encoding
   set fcgi($requestId,data)      ""	;# fcgi data buffer
   set fcgi($requestId,dataEof)   0	;# fcgi data eof marker
   set fcgi($requestId,dataRedir) 0	;# fcgi data redirected to stdin
   set fcgi($requestId,stdout)    ""	;# stdout buffer
   set fcgi($requestId,stdoutFlg) 0	;# stdout written flag
+  set fcgi($requestId,stdoutEnc) ""	;# stdout encoding
   set fcgi($requestId,stderr)    ""	;# stderr buffer
   set fcgi($requestId,stderrFlg) 0	;# stderr written flag
+  set fcgi($requestId,stderrEnc) ""	;# stderr encoding
   set fcgi($requestId,keepConn)  $flags	;# keep connection
   set fcgi($requestId,exitCode)  0	;# exit code
   set fcgi($requestId,role)      $role	;# fcgi role
@@ -1031,7 +1087,7 @@ if {$port < 0} {
 # export applications and io wrapper commands
 namespace export FCGI_Accept FCGI_Finish FCGI_SetExitStatus \
 		 FCGI_StartFilterData FCGI_SetBufSize
-namespace export gets read flush puts eof
+namespace export gets read flush puts eof fconfigure
 
 }   ;# end of namespace eval fcgi
 
@@ -1046,6 +1102,7 @@ namespace import -force fcgi::read
 namespace import -force fcgi::flush
 namespace import -force fcgi::puts
 namespace import -force fcgi::eof
+namespace import -force fcgi::fconfigure
 
 # import the application fcgi commands
 namespace import fcgi::FCGI_Accept
