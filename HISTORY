@@ -48,4 +48,8 @@ Fcgi.tcl HISTORY
 
 
 2025-06-29  version 0.6.1
-        merge fcgi::read bug fixes by Phil Krylov.
+        merge fcgi::read bugfixes by Phil Krylov.
+
+
+2025-07-01  version 0.6.2
+        merge fix for fconfigure on FCGI channels by Phil Krylov.
